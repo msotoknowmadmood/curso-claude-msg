@@ -15,7 +15,8 @@ Terminología del dominio y conceptos técnicos utilizados en el proyecto Restte
 | **Dish** | Plato de la carta de un restaurante. Tiene nombre, descripción, precio, categoría y puede estar disponible o no. |
 | **Ingredient** | Ingrediente utilizado en los platos. Tiene nombre, unidad de medida y stock actual. Pertenece a un restaurante. |
 | **DishIngredient** | Relación entre un plato y un ingrediente, con la cantidad necesaria. |
-| **Order** | Pedido realizado por un cliente. Contiene ítems (platos) y está asociado a un restaurante. |
+| **Table (Mesa)** | Mesa de un restaurante. Tiene un número visible (único en su restaurante), descripción opcional, capacidad (comensales) y estado. El cliente elige y ocupa una mesa libre antes de ver la carta. |
+| **Order** | Pedido realizado por un cliente. Contiene ítems (platos) y está asociado a un restaurante y a la mesa (`tableId`) que ocupó el cliente. Las consultas devuelven también `tableNumber` para mostrar "Mesa N". |
 | **OrderItem** | Línea de un pedido: un plato con cantidad, notas opcionales y estado. |
 
 Dos particularidades del modelo que conviene tener presentes:
@@ -43,6 +44,16 @@ El valor almacenado es `manager`; "gerente" es solo su traducción en la interfa
 | **preparando** | Ítem siendo preparado en cocina. | cocinero |
 | **listo** | Ítem preparado, listo para servir. | cocinero |
 | **entregado** | Ítem entregado al cliente. Desaparece de las vistas activas. | camarero |
+
+### Estados de Mesa
+
+| Estado | Descripción | Quién lo cambia |
+| --- | --- | --- |
+| **libre** | Mesa disponible: aparece en `GET .../tables/available` si tiene capacidad suficiente. Estado inicial por defecto. | empleado (admin, manager, camarero, cocinero) vía `PATCH .../status` |
+| **ocupada** | Mesa en uso. | el cliente al elegirla (`PATCH .../occupy`, solo si estaba `libre`) o un empleado |
+| **reservada** | Mesa apartada a mano; no se puede ocupar con `occupy`. No hay flujo de reservas para clientes. | empleado o admin |
+
+La mesa **solo vuelve a `libre` manualmente** (un empleado con `PATCH .../status`): no se libera al entregar o pagar el pedido ni por tiempo. La ocupación es atómica, así que si dos clientes eligen la misma mesa solo el primero lo consigue; el segundo recibe `TableNotAvailableError`.
 
 ### Categorías de Platos
 
@@ -89,17 +100,17 @@ Las tres capas aplican al contexto `employee`:
 | **Application** | Casos de uso. Orquesta la lógica de negocio. |
 | **Infrastructure** | Implementaciones concretas: BD, HTTP, servicios externos. |
 
-En `restaurant`, `dish`, `ingredient` y `order` la separación equivalente es por carpetas: `models/`, `repositories/`, `services/`, `controllers/` y `routes/`.
+En `restaurant`, `dish`, `ingredient`, `table` y `order` la separación equivalente es por carpetas: `models/`, `repositories/`, `services/`, `controllers/` y `routes/`.
 
 ### Patrones
 
 | Patrón | Descripción | Ejemplo en Resttek |
 | --- | --- | --- |
-| **Entity** | Objeto con identidad única y comportamiento propio. | `Employee` (la única). `Restaurant`, `Dish`, `Ingredient` y `Order` son `interface` planas |
+| **Entity** | Objeto con identidad única y comportamiento propio. | `Employee` (la única). `Restaurant`, `Dish`, `Ingredient`, `Table` y `Order` son `interface` planas |
 | **Value Object** | Objeto inmutable definido por su valor. | `Email`, `Role` |
 | **Repository** | Abstracción de persistencia. | `IEmployeeRepository`, `RestaurantRepository` |
 | **Use Case** | Acción de negocio específica, una clase con `execute()`. | `LoginUseCase`, `CreateEmployeeUseCase`, `RegisterClientUseCase` |
-| **Service** | Equivalente al caso de uso fuera de `employee`: una clase con varios métodos. | `RestaurantService`, `DishService`, `OrderService` |
+| **Service** | Equivalente al caso de uso fuera de `employee`: una clase con varios métodos. | `RestaurantService`, `DishService`, `TableService`, `OrderService` |
 | **DTO** | Objeto para transferir datos entre capas. | `CreateRestaurantDTO`, `LoginDTO` |
 | **Factory Method** | Método estático para crear instancias con validación. | `Employee.create()` |
 | **Store** | Servicio Angular que guarda estado con signals. | `AuthStore`, `DishStore`, `CartStore` |
