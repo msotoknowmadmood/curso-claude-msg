@@ -60,6 +60,22 @@ describe('RegisterClientUseCase', () => {
         expect(savedEmployee.passwordHash).not.toBe('password123')
     })
 
+    it('should always register the client with role "cliente", ignoring any role sent in the DTO', async () => {
+        vi.mocked(mockEmployeeRepo.findByEmail!).mockResolvedValue(null)
+
+        const result = await useCase.execute({
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'john@example.com',
+            password: 'password123',
+            role: 'admin'
+        } as any)
+
+        expect(result.employee.role).toBe('cliente')
+        const savedEmployee = vi.mocked(mockEmployeeRepo.save!).mock.calls[0][0]
+        expect(savedEmployee.role).toBe('cliente')
+    })
+
     it('should throw DuplicatedEmailError when email already exists', async () => {
         vi.mocked(mockEmployeeRepo.findByEmail!).mockResolvedValue({
             id: 'existing-id',
