@@ -40,7 +40,7 @@ Asegurar que el login y el registro de usuarios del contexto `employee` cumplen 
 - [x] 3. Añadir un test que compruebe que el payload decodificado del token contiene `id`, `role` y `restaurantId` tal cual se pasaron a `generateToken`.
 - [x] 4. En `RegisterClientUseCase.test.ts`, añadir un test que compruebe que `employeeRepo.save` se llama con un `Employee` cuyo `passwordHash` es el valor devuelto por `authService.hashPassword` (mock), nunca la contraseña en plano recibida en el DTO.
 - [x] 5. En `RegisterClientUseCase.test.ts`, añadir un test que compruebe que el `role` del empleado creado es siempre `'cliente'`, incluso si el DTO de entrada incluyera un campo `role` adicional (debe seguir ignorándose).
-- [ ] 6. Actualizar `docs/dominio/glosario.md` línea de **JWT**: "Caduca a las **8 h**" → "Caduca a las **24 h**".
+- [x] 6. Actualizar `docs/dominio/glosario.md` línea de **JWT**: "Caduca a las **8 h**" → "Caduca a las **24 h**".
 - [ ] 7. Ejecutar `npm test` desde la raíz (o `npx vitest run` dentro de `packages/api`) y confirmar que toda la suite pasa, incluidos los tests nuevos.
 - [ ] 8. Verificación manual: con la API levantada (`npm run dev:api`), hacer `POST /api/v1/auth/register` y `POST /api/v1/auth/login` con una herramienta como curl/Postman, decodificar el `token` devuelto (p. ej. en jwt.io) y comprobar que `exp - iat` corresponde a 24h y que el payload trae `id`, `role` y `restaurantId`.
 

@@ -120,7 +120,7 @@ En `restaurant`, `dish`, `ingredient` y `order` la separación equivalente es po
 
 | Concepto | Definición |
 | --- | --- |
-| **JWT** | JSON Web Token. Token firmado que contiene `id`, `role` y `restaurantId`. Caduca a las **8 h**. |
+| **JWT** | JSON Web Token. Token firmado que contiene `id`, `role` y `restaurantId`. Caduca a las **24 h**. |
 | **Bearer Token** | Esquema de autenticación: `Authorization: Bearer <jwt>`. |
 | **bcrypt** | Algoritmo de hash para contraseñas (10 salt rounds). |
 | **AuthGuard** | Guard que verifica si hay sesión activa antes de permitir acceso a una ruta. No comprueba roles. |
