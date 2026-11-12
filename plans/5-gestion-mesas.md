@@ -143,7 +143,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 
 - [x] 30. Crear `core/models/table.model.ts` y `core/services/table.service.ts` (`getAvailable(restaurantId, people)` → `GET .../tables/available?people=N`; `occupy(restaurantId, tableId)` → `PATCH .../tables/:id/occupy`) con `API_URL` inyectado.
 - [x] 31. Ampliar `CartStore` con `tableId`, `tableNumber`, `setTable(restaurantId, tableId, tableNumber)`; limpiar mesa en `clear()` y al cambiar de restaurante.
-- [ ] 32. Crear `features/tables/select-table.component.ts`: input nº de personas (entero ≥ 1) + botón "Buscar mesas"; lista de mesas disponibles seleccionables (número, capacidad, descripción); mensaje si no hay ninguna.
+- [x] 32. Crear `features/tables/select-table.component.ts`: input nº de personas (entero ≥ 1) + botón "Buscar mesas"; lista de mesas disponibles seleccionables (número, capacidad, descripción); mensaje si no hay ninguna.
 - [ ] 33. En el mismo componente, botón "Continuar" (deshabilitado sin mesa elegida) que llama a `occupy`; en éxito `cartStore.setTable(...)` y navega a `/restaurants/:id`; si la API responde `TableNotAvailableError`, mostrar aviso y recargar disponibles.
 - [ ] 34. Registrar la ruta `restaurants/:id/table` en `app.routes.ts` y cambiar el enlace de `restaurant-list.component.ts` a `['/restaurants', restaurant.id, 'table']`.
 - [ ] 35. En `restaurant-menu.component.ts`, redirigir a `/restaurants/:id/table` si `cartStore.tableId()` es nulo o la mesa es de otro restaurante; mostrar "Mesa N" en la cabecera.
