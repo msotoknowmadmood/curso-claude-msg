@@ -120,7 +120,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 - [x] 15. Añadir en el controlador `changeStatus` (body `{ status }`), `getAvailable` (query `?people=`, convertido a número) y `occupy` (devuelve la mesa ocupada).
 - [x] 16. Crear `routes/table.routes.ts` (`mergeParams: true`): `GET /available` y `PATCH /:id/occupy` solo con `authenticate`; `GET /` y `GET /:id` para `admin, manager, camarero, cocinero`; `PATCH /:id/status` para `admin, manager, camarero, cocinero`; `POST /`, `PUT /:id`, `DELETE /:id` solo `admin`. Declarar `/available` antes de `/:id`. Montar en `app.ts` bajo `/api/v1/restaurants/:restaurantId/tables`.
 - [x] 17. Añadir `tableNumber` a `Order` y `LEFT JOIN tables t ON t.id = o.table_id` en las consultas de `order.repository.ts` (`findById`, `findActiveByRestaurant`, `findByClientId`); ajustar `MockOrderRepository` si hace falta y comprobar que `order.service.test.ts` sigue en verde.
-- [ ] 18. Seed: insertar mesas fijas (`table-1-1` … `table-1-6` para `rest-1` con capacidades 2/2/4/4/6/8, y 3–4 mesas para `rest-2`) con `INSERT OR IGNORE`; cambiar el `table_id` del pedido de ejemplo de `'5'` a `table-1-5` y marcar esa mesa como `ocupada`.
+- [x] 18. Seed: insertar mesas fijas (`table-1-1` … `table-1-6` para `rest-1` con capacidades 2/2/4/4/6/8, y 3–4 mesas para `rest-2`) con `INSERT OR IGNORE`; cambiar el `table_id` del pedido de ejemplo de `'5'` a `table-1-5` y marcar esa mesa como `ocupada`.
 - [ ] 19. Ejecutar `npm test` desde la raíz y verificación manual con curl/Postman de todos los endpoints de mesas (incluidos 400/403/404 y doble `occupy` → 400 `TableNotAvailableError`).
 
 ### web-admin
