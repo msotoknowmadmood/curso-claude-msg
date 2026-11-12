@@ -8,11 +8,19 @@ import {
     InvalidTableCapacityError,
     RestaurantIdRequiredError,
     RestaurantNotFoundError,
-    DuplicatedTableNumberError
+    DuplicatedTableNumberError,
+    TableNotFoundError
 } from '@errors/DomainErrors.js'
 
 export interface CreateTableDTO {
     restaurantId: string
+    number: number
+    capacity: number
+    description?: string | null
+    status?: string
+}
+
+export interface UpdateTableDTO {
     number: number
     capacity: number
     description?: string | null
@@ -46,6 +54,42 @@ export class TableService {
 
         await this.tableRepository.save(table)
         return table
+    }
+
+    async update(restaurantId: string, id: string, dto: UpdateTableDTO): Promise<Table> {
+        const existing = await this.getById(restaurantId, id)
+        const updated = this.buildTable({
+            id: existing.id,
+            restaurantId: existing.restaurantId,
+            number: dto.number,
+            capacity: dto.capacity,
+            description: dto.description,
+            status: dto.status ?? existing.status,
+            createdAt: existing.createdAt,
+            updatedAt: new Date().toISOString()
+        })
+        await this.ensureNumberIsFree(updated)
+
+        await this.tableRepository.save(updated)
+        return updated
+    }
+
+    async delete(restaurantId: string, id: string): Promise<void> {
+        await this.getById(restaurantId, id)
+        await this.tableRepository.delete(id)
+    }
+
+    // Una mesa de otro restaurante se trata como inexistente (404).
+    async getById(restaurantId: string, id: string): Promise<Table> {
+        const table = await this.tableRepository.findById(id)
+        if (!table || table.restaurantId !== restaurantId) {
+            throw new TableNotFoundError()
+        }
+        return table
+    }
+
+    async findByRestaurantId(restaurantId: string): Promise<Table[]> {
+        return this.tableRepository.findByRestaurantId(restaurantId)
     }
 
     private async ensureNumberIsFree(table: Table): Promise<void> {

@@ -8,8 +8,10 @@ import {
     InvalidTableStatusError,
     RestaurantIdRequiredError,
     RestaurantNotFoundError,
-    DuplicatedTableNumberError
+    DuplicatedTableNumberError,
+    TableNotFoundError
 } from '@errors/DomainErrors.js'
+import type { Table } from '@models/table.model.js'
 
 function restaurant(id: string) {
     return {
@@ -87,6 +89,89 @@ describe('TableService', () => {
             await service.create(validInput)
             const other = await service.create({ ...validInput, restaurantId: 'r2' })
             expect(other.number).toBe(1)
+        })
+    })
+})
+
+describe('TableService (por id)', () => {
+    let tableRepo: MockTableRepository
+    let restaurantRepo: MockRestaurantRepository
+    let service: TableService
+    let existing: Table
+
+    beforeEach(async () => {
+        tableRepo = new MockTableRepository()
+        restaurantRepo = new MockRestaurantRepository()
+        await restaurantRepo.save(restaurant('r1'))
+        await restaurantRepo.save(restaurant('r2'))
+        service = new TableService(tableRepo, restaurantRepo)
+        existing = await service.create({ restaurantId: 'r1', number: 1, capacity: 4, description: 'Ventana', status: 'reservada' })
+        await service.create({ restaurantId: 'r1', number: 2, capacity: 2 })
+    })
+
+    describe('getById / findByRestaurantId', () => {
+        it('should return a table of the restaurant', async () => {
+            expect(await service.getById('r1', existing.id)).toEqual(existing)
+        })
+
+        it('should throw TableNotFoundError if it does not exist or belongs to another restaurant', async () => {
+            await expect(service.getById('r1', 'nope')).rejects.toThrow(TableNotFoundError)
+            await expect(service.getById('r2', existing.id)).rejects.toThrow(TableNotFoundError)
+        })
+
+        it('should list the tables of a restaurant ordered by number', async () => {
+            expect((await service.findByRestaurantId('r1')).map(t => t.number)).toEqual([1, 2])
+            expect(await service.findByRestaurantId('r2')).toEqual([])
+        })
+    })
+
+    describe('update', () => {
+        it('should update number, capacity and description keeping id, restaurantId, createdAt and status', async () => {
+            const updated = await service.update('r1', existing.id, { number: 7, capacity: 6, description: 'Terraza' })
+
+            expect(updated).toMatchObject({
+                id: existing.id, restaurantId: 'r1', number: 7, capacity: 6, description: 'Terraza',
+                status: 'reservada', createdAt: existing.createdAt
+            })
+            expect(await tableRepo.findById(existing.id)).toEqual(updated)
+        })
+
+        it('should set description to null when omitted and change the status when given', async () => {
+            const updated = await service.update('r1', existing.id, { number: 1, capacity: 4, status: 'LIBRE' })
+            expect(updated.description).toBeNull()
+            expect(updated.status).toBe('libre')
+        })
+
+        it('should allow keeping its own number', async () => {
+            await expect(service.update('r1', existing.id, { number: 1, capacity: 8 })).resolves.toMatchObject({ capacity: 8 })
+        })
+
+        it('should reject a number used by another table of the restaurant', async () => {
+            await expect(service.update('r1', existing.id, { number: 2, capacity: 4 })).rejects.toThrow(DuplicatedTableNumberError)
+        })
+
+        it('should revalidate the input', async () => {
+            await expect(service.update('r1', existing.id, { number: 0, capacity: 4 })).rejects.toThrow(InvalidTableNumberError)
+            await expect(service.update('r1', existing.id, { number: 1, capacity: '4' as unknown as number })).rejects.toThrow(InvalidTableCapacityError)
+            await expect(service.update('r1', existing.id, { number: 1, capacity: 4, status: 'x' })).rejects.toThrow(InvalidTableStatusError)
+        })
+
+        it('should throw TableNotFoundError if it does not exist or belongs to another restaurant', async () => {
+            await expect(service.update('r1', 'nope', { number: 9, capacity: 4 })).rejects.toThrow(TableNotFoundError)
+            await expect(service.update('r2', existing.id, { number: 9, capacity: 4 })).rejects.toThrow(TableNotFoundError)
+        })
+    })
+
+    describe('delete', () => {
+        it('should delete the table', async () => {
+            await service.delete('r1', existing.id)
+            expect(await tableRepo.findById(existing.id)).toBeNull()
+        })
+
+        it('should throw TableNotFoundError if it does not exist or belongs to another restaurant', async () => {
+            await expect(service.delete('r1', 'nope')).rejects.toThrow(TableNotFoundError)
+            await expect(service.delete('r2', existing.id)).rejects.toThrow(TableNotFoundError)
+            expect(await tableRepo.findById(existing.id)).not.toBeNull()
         })
     })
 })
