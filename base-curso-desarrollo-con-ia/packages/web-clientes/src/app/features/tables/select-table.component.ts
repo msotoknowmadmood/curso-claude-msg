@@ -1,7 +1,8 @@
-import { Component, inject, signal, computed } from '@angular/core'
-import { ActivatedRoute, RouterLink } from '@angular/router'
+import { Component, inject, signal, computed, OnInit } from '@angular/core'
+import { ActivatedRoute, Router, RouterLink } from '@angular/router'
 import { TableService } from '../../core/services/table.service'
 import { Table } from '../../core/models/table.model'
+import { CartStore } from '../../core/store/cart.store'
 
 @Component({
   selector: 'app-select-table',
@@ -35,6 +36,9 @@ import { Table } from '../../core/models/table.model'
       @if (error()) {
         <div class="alert-error">{{ error() }}</div>
       }
+      @if (notice()) {
+        <div class="alert-warning">{{ notice() }}</div>
+      }
 
       @if (loading()) {
         <div class="spinner"></div>
@@ -59,6 +63,16 @@ import { Table } from '../../core/models/table.model'
                 }
               </button>
             }
+          </div>
+          <div class="actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="!selectedTableId() || occupying()"
+              (click)="continue()"
+            >
+              Continuar
+            </button>
           </div>
         }
       }
@@ -110,6 +124,18 @@ import { Table } from '../../core/models/table.model'
       font-weight: 600;
       margin-bottom: 4px;
     }
+    .alert-warning {
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid #b8860b;
+      color: #e0b84a;
+    }
+    .actions {
+      margin-top: 24px;
+      display: flex;
+      justify-content: flex-end;
+    }
     .capacity {
       color: var(--text-secondary);
       font-size: 13px;
@@ -121,9 +147,11 @@ import { Table } from '../../core/models/table.model'
     }
   `]
 })
-export class SelectTableComponent {
+export class SelectTableComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)
+  private readonly router = inject(Router)
   private readonly tableService = inject(TableService)
+  private readonly cartStore = inject(CartStore)
 
   protected readonly restaurantId = this.route.snapshot.paramMap.get('id')!
 
@@ -134,18 +162,30 @@ export class SelectTableComponent {
   readonly searched = signal(false)
   readonly searchedPeople = signal<number | null>(null)
   readonly error = signal<string | null>(null)
+  readonly notice = signal<string | null>(null)
+  readonly occupying = signal(false)
 
   readonly validPeople = computed(() => {
     const p = this.people()
     return p !== null && Number.isInteger(p) && p >= 1
   })
 
+  ngOnInit(): void {
+    // Si ya hay una mesa elegida para este restaurante, no se ocupa otra: directo a la carta.
+    if (this.cartStore.tableId() && this.cartStore.tableRestaurantId() === this.restaurantId) {
+      this.router.navigate(['/restaurants', this.restaurantId], { replaceUrl: true })
+    }
+  }
+
   onPeopleInput(value: string): void {
     this.people.set(value === '' ? null : Number(value))
   }
 
   search(event?: Event): void {
-    event?.preventDefault()
+    if (event) {
+      event.preventDefault()
+      this.notice.set(null)
+    }
     const people = this.people()
     if (!this.validPeople() || people === null) return
 
@@ -169,5 +209,34 @@ export class SelectTableComponent {
 
   select(table: Table): void {
     this.selectedTableId.set(table.id)
+  }
+
+  continue(): void {
+    const tableId = this.selectedTableId()
+    if (!tableId || this.occupying()) return
+
+    this.occupying.set(true)
+    this.error.set(null)
+    this.notice.set(null)
+
+    this.tableService.occupy(this.restaurantId, tableId).subscribe({
+      next: (table) => {
+        this.cartStore.setTable(this.restaurantId, table.id, table.number)
+        this.occupying.set(false)
+        this.router.navigate(['/restaurants', this.restaurantId])
+      },
+      error: (err) => {
+        this.occupying.set(false)
+        if (err?.error?.error === 'TableNotAvailableError') {
+          this.notice.set('Esa mesa ya no está libre. Hemos actualizado las mesas disponibles, elige otra.')
+          this.search()
+        } else if (err?.error?.error === 'TableNotFoundError') {
+          this.error.set('La mesa seleccionada no existe')
+          this.search()
+        } else {
+          this.error.set('Error al ocupar la mesa. Inténtalo de nuevo.')
+        }
+      }
+    })
   }
 }
