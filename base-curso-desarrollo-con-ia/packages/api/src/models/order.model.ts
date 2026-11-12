@@ -19,6 +19,8 @@ export interface Order {
     id: string
     restaurantId: string
     tableId: string | null
+    // Número visible de la mesa (LEFT JOIN tables); null si no hay mesa o el tableId no existe.
+    tableNumber?: number | null
     clientId: string | null
     createdAt: Date
     items: OrderItem[]
