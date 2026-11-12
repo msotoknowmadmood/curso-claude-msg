@@ -4,7 +4,14 @@ import { TableController } from './table.controller.js'
 import { TableService } from '@services/table.service.js'
 import { MockTableRepository } from '@repositories/mocks/MockTableRepository.js'
 import { MockRestaurantRepository } from '@repositories/mocks/MockRestaurantRepository.js'
-import { TableNotFoundError, InvalidTableNumberError, RestaurantNotFoundError } from '@errors/DomainErrors.js'
+import {
+    TableNotFoundError,
+    InvalidTableNumberError,
+    RestaurantNotFoundError,
+    InvalidTableStatusError,
+    InvalidPeopleCountError,
+    TableNotAvailableError
+} from '@errors/DomainErrors.js'
 import type { Table } from '@models/table.model.js'
 
 const TABLE_KEYS = ['capacity', 'createdAt', 'description', 'id', 'number', 'restaurantId', 'status', 'updatedAt']
@@ -112,6 +119,53 @@ describe('TableController', () => {
             await controller.delete(request({ restaurantId: 'r1', id: 'nope' }), mockResponse(), next)
             expect(next).toHaveBeenCalledTimes(2)
             expect(next).toHaveBeenNthCalledWith(2, expect.any(TableNotFoundError))
+        })
+    })
+
+    describe('changeStatus', () => {
+        it('should change the status from body.status and respond 200 with the table', async () => {
+            const res = mockResponse()
+            await controller.changeStatus(request({ restaurantId: 'r1', id: existing.id }, { status: 'reservada' }), res, next)
+            expect(res.statusCode).toBe(200)
+            expect(res.body).toMatchObject({ id: existing.id, status: 'reservada' })
+        })
+
+        it('should pass InvalidTableStatusError to next() when status is missing', async () => {
+            await controller.changeStatus(request({ restaurantId: 'r1', id: existing.id }, undefined), mockResponse(), next)
+            expect(next).toHaveBeenCalledWith(expect.any(InvalidTableStatusError))
+        })
+    })
+
+    describe('getAvailable', () => {
+        it('should convert ?people to a number and list the available tables', async () => {
+            const res = mockResponse()
+            await controller.getAvailable(request({ restaurantId: 'r1' }, {}, { people: '4' }), res, next)
+            expect(res.statusCode).toBe(200)
+            expect(res.body).toEqual([existing])
+        })
+
+        it.each([[undefined], ['abc'], ['2.5'], ['0'], ['-1'], [''], [['2', '3']]])('should pass InvalidPeopleCountError for people = %s', async (people) => {
+            await controller.getAvailable(request({ restaurantId: 'r1' }, {}, { people }), mockResponse(), next)
+            expect(next).toHaveBeenCalledWith(expect.any(InvalidPeopleCountError))
+        })
+    })
+
+    describe('occupy', () => {
+        it('should occupy the table ignoring the body and respond 200 with the table', async () => {
+            for (const body of [undefined, {}]) {
+                const table = await service.create({ restaurantId: 'r1', number: body ? 10 : 11, capacity: 2 })
+                const res = mockResponse()
+                await controller.occupy(request({ restaurantId: 'r1', id: table.id }, body), res, next)
+                expect(res.statusCode).toBe(200)
+                expect(res.body).toMatchObject({ id: table.id, status: 'ocupada' })
+            }
+            expect(next).not.toHaveBeenCalled()
+        })
+
+        it('should pass TableNotAvailableError to next() the second time', async () => {
+            await controller.occupy(request({ restaurantId: 'r1', id: existing.id }), mockResponse(), next)
+            await controller.occupy(request({ restaurantId: 'r1', id: existing.id }), mockResponse(), next)
+            expect(next).toHaveBeenCalledWith(expect.any(TableNotAvailableError))
         })
     })
 })

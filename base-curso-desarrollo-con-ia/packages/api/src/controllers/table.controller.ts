@@ -63,6 +63,41 @@ export class TableController {
         }
     }
 
+    changeStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            const table = await this.tableService.changeStatus(
+                req.params.restaurantId as string,
+                req.params.id as string,
+                req.body?.status
+            )
+            res.status(200).json(this.toJSON(table))
+        } catch (error) {
+            next(error)
+        }
+    }
+
+    getAvailable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            // Ausente, repetido o vacío → NaN, que el servicio rechaza con InvalidPeopleCountError.
+            const raw = req.query.people
+            const people = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN
+            const tables = await this.tableService.findAvailable(req.params.restaurantId as string, people)
+            res.status(200).json(tables.map(t => this.toJSON(t)))
+        } catch (error) {
+            next(error)
+        }
+    }
+
+    // El body se ignora: se acepta vacío o {}.
+    occupy = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            const table = await this.tableService.occupy(req.params.restaurantId as string, req.params.id as string)
+            res.status(200).json(this.toJSON(table))
+        } catch (error) {
+            next(error)
+        }
+    }
+
     private toJSON(table: Table) {
         return {
             id: table.id,
