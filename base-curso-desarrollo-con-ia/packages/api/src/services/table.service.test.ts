@@ -7,7 +7,8 @@ import {
     InvalidTableCapacityError,
     InvalidTableStatusError,
     RestaurantIdRequiredError,
-    RestaurantNotFoundError
+    RestaurantNotFoundError,
+    DuplicatedTableNumberError
 } from '@errors/DomainErrors.js'
 
 function restaurant(id: string) {
@@ -74,6 +75,18 @@ describe('TableService', () => {
         it('should reject a non-existent restaurant with RestaurantNotFoundError', async () => {
             await expect(service.create({ ...validInput, restaurantId: 'nope' })).rejects.toThrow(RestaurantNotFoundError)
             expect(await tableRepo.findByRestaurantId('nope')).toEqual([])
+        })
+
+        it('should reject a duplicated number in the same restaurant', async () => {
+            await service.create(validInput)
+            await expect(service.create({ ...validInput, capacity: 2 })).rejects.toThrow(DuplicatedTableNumberError)
+            expect(await tableRepo.findByRestaurantId('r1')).toHaveLength(1)
+        })
+
+        it('should allow the same number in another restaurant', async () => {
+            await service.create(validInput)
+            const other = await service.create({ ...validInput, restaurantId: 'r2' })
+            expect(other.number).toBe(1)
         })
     })
 })

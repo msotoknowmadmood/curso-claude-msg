@@ -7,7 +7,8 @@ import {
     InvalidTableNumberError,
     InvalidTableCapacityError,
     RestaurantIdRequiredError,
-    RestaurantNotFoundError
+    RestaurantNotFoundError,
+    DuplicatedTableNumberError
 } from '@errors/DomainErrors.js'
 
 export interface CreateTableDTO {
@@ -41,9 +42,17 @@ export class TableService {
         if (!restaurant) {
             throw new RestaurantNotFoundError()
         }
+        await this.ensureNumberIsFree(table)
 
         await this.tableRepository.save(table)
         return table
+    }
+
+    private async ensureNumberIsFree(table: Table): Promise<void> {
+        const sameNumber = await this.tableRepository.findByRestaurantAndNumber(table.restaurantId, table.number)
+        if (sameNumber && sameNumber.id !== table.id) {
+            throw new DuplicatedTableNumberError()
+        }
     }
 
     // Concentra las validaciones que en DDD irían en la entidad.
