@@ -97,7 +97,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 
 ### API — modelo y persistencia
 
-- [ ] 1. Crear `models/table.model.ts` con `VALID_TABLE_STATUSES`, `TableStatusType`, interfaz `Table` y `normalizeTableStatus()`; añadir `InvalidTableStatusError` en `DomainErrors.ts`. Test: `normalizeTableStatus(' Ocupada ')` → `'ocupada'` y valor inválido lanza el error (en `table.service.test.ts` o un `table.model.test.ts`).
+- [x] 1. Crear `models/table.model.ts` con `VALID_TABLE_STATUSES`, `TableStatusType`, interfaz `Table` y `normalizeTableStatus()`; añadir `InvalidTableStatusError` en `DomainErrors.ts`. Test: `normalizeTableStatus(' Ocupada ')` → `'ocupada'` y valor inválido lanza el error (en `table.service.test.ts` o un `table.model.test.ts`).
 - [ ] 2. Añadir en `DomainErrors.ts` el resto de errores: `TableNotFoundError`, `InvalidTableNumberError`, `InvalidTableCapacityError`, `DuplicatedTableNumberError`, `TableNotAvailableError`, `InvalidPeopleCountError`; añadir `TableNotFoundError` a `NOT_FOUND_ERRORS` en `errorHandler.ts`.
 - [ ] 3. Añadir `CREATE TABLE IF NOT EXISTS tables (id TEXT PK, restaurant_id TEXT NOT NULL, number INTEGER NOT NULL, description TEXT, capacity INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'libre', created_at, updated_at, UNIQUE(restaurant_id, number), FK restaurants)` en `runInitialMigrations()`.
 - [ ] 4. Crear `repositories/table.repository.ts` con la interfaz `TableRepository` y `SqliteTableRepository.save()` (UPDATE/INSERT) + `findById()` con alias `snake_case → camelCase`; test de integración en `table.repository.test.ts` (guardar y recuperar).
@@ -141,7 +141,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 
 ### web-clientes
 
-- [ ] 30. Crear `core/models/table.model.ts` y `core/services/table.service.ts` (`getAvailable(restaurantId, people)` → `GET .../tables/available?people=N`; `occupy(restaurantId, tableId)` → `PATCH .../tables/:id/occupy`) con `API_URL` inyectado.
+- [x] 30. Crear `core/models/table.model.ts` y `core/services/table.service.ts` (`getAvailable(restaurantId, people)` → `GET .../tables/available?people=N`; `occupy(restaurantId, tableId)` → `PATCH .../tables/:id/occupy`) con `API_URL` inyectado.
 - [ ] 31. Ampliar `CartStore` con `tableId`, `tableNumber`, `setTable(restaurantId, tableId, tableNumber)`; limpiar mesa en `clear()` y al cambiar de restaurante.
 - [ ] 32. Crear `features/tables/select-table.component.ts`: input nº de personas (entero ≥ 1) + botón "Buscar mesas"; lista de mesas disponibles seleccionables (número, capacidad, descripción); mensaje si no hay ninguna.
 - [ ] 33. En el mismo componente, botón "Continuar" (deshabilitado sin mesa elegida) que llama a `occupy`; en éxito `cartStore.setTable(...)` y navega a `/restaurants/:id`; si la API responde `TableNotAvailableError`, mostrar aviso y recargar disponibles.
