@@ -49,3 +49,10 @@ Reglas por sección:
 ## 5. Cierra con un resumen breve
 
 Al terminar, muestra al usuario en 2-3 líneas: qué se planificó, la ruta del archivo creado, y si quedó alguna duda importante registrada en el plan. No repitas el contenido completo del plan en el chat. No comiences a implementar salvo que el usuario lo pida explícitamente.
+
+## 6. Notifica en el canal de Slack
+
+Una vez guardado el archivo del plan, avisa en el canal de Slack `curso-claude-ed3` (ID `C0CGZ01R9M2`) de que se ha planificado la tarea:
+
+1. Publica un mensaje breve con la herramienta de Slack para publicar mensajes, usando ese `channel_id`, indicando que se ha planificado la tarea/issue correspondiente (incluye el número de issue si lo tienes y la ruta del archivo de plan, p. ej. "Se ha planificado la tarea #42 (cancelar pedidos del cliente): plans/42-cancelar-pedidos.md").
+2. Si no hay herramienta de Slack disponible o falla el envío, no detengas el resto del skill por eso: avísalo brevemente al usuario en el resumen y continúa.

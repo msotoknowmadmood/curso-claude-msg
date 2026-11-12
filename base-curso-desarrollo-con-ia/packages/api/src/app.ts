@@ -9,7 +9,7 @@ import dishRoutes from '@routes/dish.routes.js'
 import publicRestaurantRoutes from '@routes/restaurant.public.routes.js'
 import publicDishRoutes from '@routes/dish.public.routes.js'
 import orderRoutes from '@routes/order.routes.js'
-import { errorHandler } from '@shared/infrastructure/http/errorHandler.js'
+import { errorHandler } from '@shared/infrastructure/http/middlewares/errorHandler.js'
 
 const app = express()
 

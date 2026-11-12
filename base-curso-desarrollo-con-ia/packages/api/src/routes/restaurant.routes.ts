@@ -3,7 +3,8 @@ import { RestaurantController } from '@controllers/restaurant.controller.js'
 import { dbConfig } from '@config/database.js'
 import { SqliteRestaurantRepository } from '@repositories/restaurant.repository.js'
 import { RestaurantService } from '@services/restaurant.service.js'
-import { authenticate, authorize } from '@shared/infrastructure/http/middlewares.js'
+import { authenticate } from '@shared/infrastructure/http/middlewares/authenticate.js'
+import { authorize } from '@shared/infrastructure/http/middlewares/authorize.js'
 
 const restaurantRepository = new SqliteRestaurantRepository(dbConfig)
 const restaurantService = new RestaurantService(restaurantRepository)

@@ -3,7 +3,8 @@ import { DishController } from '@controllers/dish.controller.js'
 import { dbConfig } from '@config/database.js'
 import { SqliteDishRepository } from '@repositories/dish.repository.js'
 import { DishService } from '@services/dish.service.js'
-import { authenticate, authorize } from '@shared/infrastructure/http/middlewares.js'
+import { authenticate } from '@shared/infrastructure/http/middlewares/authenticate.js'
+import { authorize } from '@shared/infrastructure/http/middlewares/authorize.js'
 
 const dishRepository = new SqliteDishRepository(dbConfig)
 const dishService = new DishService(dishRepository)

@@ -64,3 +64,10 @@ Reglas estrictas:
 ## 7. Cierra con un resumen breve
 
 Al terminar (o si te detienes por una pregunta bloqueante), indica en pocas líneas: rama creada, cuántas tareas de las totales se completaron, y si quedó algún criterio de aceptación pendiente de verificación manual. No repitas el contenido completo del plan ni el diff en el chat.
+
+## 8. Notifica en el canal de Slack
+
+Si completaste todas las tareas del plan (no si te detuviste a mitad por una pregunta bloqueante), avisa en el canal de Slack `curso-claude-ed3` (ID `C0CGZ01R9M2`) de que se ha implementado el plan:
+
+1. Publica un mensaje breve con la herramienta de Slack para publicar mensajes, usando ese `channel_id`, indicando que se ha implementado el plan correspondiente (incluye el nombre del archivo de plan y la rama creada, p. ej. "Se ha implementado el plan plans/42-cancelar-pedidos.md en la rama 42-cancelar-pedidos").
+2. Si no hay herramienta de Slack disponible o falla el envío, no detengas el resto del skill por eso: avísalo brevemente al usuario en el resumen y continúa.

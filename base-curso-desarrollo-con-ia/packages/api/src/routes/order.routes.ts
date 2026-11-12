@@ -3,7 +3,7 @@ import { OrderController } from '@controllers/order.controller.js'
 import { OrderService } from '@services/order.service.js'
 import { SqliteOrderRepository } from '@repositories/order.repository.js'
 import { dbConfig } from '@config/database.js'
-import { authenticate } from '@shared/infrastructure/http/middlewares.js'
+import { authenticate } from '@shared/infrastructure/http/middlewares/authenticate.js'
 
 const orderRepository = new SqliteOrderRepository(dbConfig)
 const orderService = new OrderService(orderRepository)
