@@ -154,15 +154,15 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 
 - [x] 37. Actualizar `docs/dominio/modelo-datos.md` (tabla `tables`, ERD, relaciones) y `docs/dominio/glosario.md` (Mesa, estados `libre`/`ocupada`/`reservada`).
 - [x] 38. Actualizar `docs/arquitectura/arquitectura-api.md` (tabla de endpoints de mesas, `TableNotFoundError` en la lista de 404, `table` en los dominios por capas) y ejecutar `/update-api-docs` para el OpenAPI.
-- [ ] 39. Verificación end-to-end: cliente ocupa mesa y pide → empleado ve la mesa ocupada con su pedido en "Mesas" y "Mesa N" en cocina/barra → empleado la pasa a `libre` → vuelve a aparecer como disponible para el cliente.
+- [x] 39. Verificación end-to-end: cliente ocupa mesa y pide → empleado ve la mesa ocupada con su pedido en "Mesas" y "Mesa N" en cocina/barra → empleado la pasa a `libre` → vuelve a aparecer como disponible para el cliente. _(Verificado a nivel de API con curl: el cliente ocupa `table-1-3`, un segundo `occupy` da `TableNotAvailableError`, crea el pedido con `tableId`, `/orders/active` y `/orders/:id` devuelven `tableNumber=3`, el cocinero la pasa a `libre` y vuelve a estar disponible. Falta la verificación visual en los navegadores (:4200/:4201/:4202).)_
 
 ## Criterios de aceptación
 
 > Comportamiento observable que debe cumplirse para dar la tarea por terminada. Deben poder verificarse sin ambigüedad.
 
 - [ ] Un `admin` puede crear, listar, editar y borrar mesas de un restaurante desde web-admin (`Restaurantes → <restaurante> → Mesas`), con número, descripción, capacidad y estado.
-- [ ] La API rechaza (400) una mesa con número o capacidad no enteros o ≤ 0, con estado distinto de `libre`/`ocupada`/`reservada`, o con un número ya usado en el mismo restaurante; una mesa inexistente devuelve 404.
-- [ ] Un usuario que no es `admin` recibe 403 al crear, editar o borrar mesas.
+- [x] La API rechaza (400) una mesa con número o capacidad no enteros o ≤ 0, con estado distinto de `libre`/`ocupada`/`reservada`, o con un número ya usado en el mismo restaurante; una mesa inexistente devuelve 404.
+- [x] Un usuario que no es `admin` recibe 403 al crear, editar o borrar mesas.
 - [ ] En web-clientes, al pulsar un restaurante el cliente ve primero la pantalla "¿Cuántas personas?"; al indicar N solo aparecen las mesas `libre` de ese restaurante con capacidad ≥ N.
 - [ ] Al elegir una mesa y pulsar "Continuar", la mesa pasa a `ocupada` en la base de datos y el cliente llega a la carta, donde se muestra el número de mesa.
 - [ ] Si dos clientes intentan ocupar la misma mesa, solo el primero lo consigue; el segundo ve un aviso y la lista de disponibles actualizada.
@@ -170,9 +170,9 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 - [ ] El pedido enviado desde el carrito se guarda con el `tableId` de la mesa elegida, y en cocina/barra/salón aparece como "Mesa N" (número de mesa, no UUID).
 - [ ] En web-empleados existe la página "Mesas" visible para manager, camarero y cocinero, que muestra todas las mesas del restaurante del empleado con su estado, permite cambiarlo y se refresca sola cada 30 s.
 - [ ] En esa página, cada mesa `ocupada` muestra sus pedidos activos con el estado de cada ítem.
-- [ ] Tras `npm run seed`, existen mesas de ejemplo en `rest-1` y `rest-2` y el pedido de ejemplo está asociado a una de ellas.
-- [ ] `npm test` pasa en verde, incluyendo los nuevos tests de `TableService` y `SqliteTableRepository`.
-- [ ] `modelo-datos.md`, `arquitectura-api.md`, `glosario.md` y el OpenAPI reflejan la nueva entidad y sus endpoints.
+- [x] Tras `npm run seed`, existen mesas de ejemplo en `rest-1` y `rest-2` y el pedido de ejemplo está asociado a una de ellas.
+- [x] `npm test` pasa en verde, incluyendo los nuevos tests de `TableService` y `SqliteTableRepository`.
+- [x] `modelo-datos.md`, `arquitectura-api.md`, `glosario.md` y el OpenAPI reflejan la nueva entidad y sus endpoints.
 
 ## Dudas y decisiones tomadas
 
