@@ -137,7 +137,8 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 - [x] 26. Crear `pages/mesas` con una tarjeta por mesa (número, capacidad, descripción, estado con color) y un `<select>` para cambiar el estado que llame al store y refresque.
 - [x] 27. En `pages/mesas`, para las mesas `ocupada`, mostrar los pedidos activos de esa mesa (`OrderStore.orders()` filtrado por `order.tableId === table.id`) con el estado de cada ítem; asegurar que `OrderStore` se carga/polling también desde esta página.
 - [x] 28. Añadir ruta `mesas` en `app.routes.ts`, `canSeeMesas` en `shell.component.ts` (todos los roles de empleado) y el enlace "Mesas" en `shell.component.html`.
-- [ ] 29. Añadir `tableNumber` a `features/orders/models/order.model.ts` y mostrar `Mesa {{ order.tableNumber ?? order.tableId }}` en `cocina`, `barra` y `salon`. Verificar en `:4201` con `camarero1@resttek.com`.
+- [x] 29. Añadir `tableNumber` a `features/orders/models/order.model.ts` y mostrar `Mesa {{ order.tableNumber ?? order.tableId }}` en `cocina`, `barra` y `salon`. Verificar en `:4201` con `camarero1@resttek.com`.
+  - Nota: compila con `ng build`; la verificación manual en `:4201` con `camarero1@resttek.com` queda pendiente.
 
 ### web-clientes
 
