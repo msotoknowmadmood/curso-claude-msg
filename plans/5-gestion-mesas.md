@@ -101,7 +101,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 - [x] 2. Añadir en `DomainErrors.ts` el resto de errores: `TableNotFoundError`, `InvalidTableNumberError`, `InvalidTableCapacityError`, `DuplicatedTableNumberError`, `TableNotAvailableError`, `InvalidPeopleCountError`; añadir `TableNotFoundError` a `NOT_FOUND_ERRORS` en `errorHandler.ts`.
 - [x] 3. Añadir `CREATE TABLE IF NOT EXISTS tables (id TEXT PK, restaurant_id TEXT NOT NULL, number INTEGER NOT NULL, description TEXT, capacity INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'libre', created_at, updated_at, UNIQUE(restaurant_id, number), FK restaurants)` en `runInitialMigrations()`.
 - [x] 4. Crear `repositories/table.repository.ts` con la interfaz `TableRepository` y `SqliteTableRepository.save()` (UPDATE/INSERT) + `findById()` con alias `snake_case → camelCase`; test de integración en `table.repository.test.ts` (guardar y recuperar).
-- [ ] 5. Implementar `findByRestaurantId()` (ordenado por `number`) y `findByRestaurantAndNumber()` con sus tests de integración.
+- [x] 5. Implementar `findByRestaurantId()` (ordenado por `number`) y `findByRestaurantAndNumber()` con sus tests de integración.
 - [ ] 6. Implementar `delete()` y `findAvailable(restaurantId, people)` (`status = 'libre' AND capacity >= ?`, ordenado por `capacity, number`) con tests: excluye ocupadas/reservadas, excluye capacidad insuficiente, excluye otros restaurantes.
 - [ ] 7. Implementar `occupyIfFree(id)` con `UPDATE tables SET status='ocupada', updated_at=? WHERE id=? AND status='libre'` devolviendo `changes === 1`; test: primera llamada `true`, segunda `false`.
 - [ ] 8. Crear `repositories/mocks/MockTableRepository.ts` (array en memoria) implementando toda la interfaz.
