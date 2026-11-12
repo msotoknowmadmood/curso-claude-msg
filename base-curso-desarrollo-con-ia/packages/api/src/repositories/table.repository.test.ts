@@ -1,7 +1,23 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Database } from '@config/database.js'
+import { SqliteTableRepository } from './table.repository.js'
+import type { Table } from '@models/table.model.js'
 
 const now = () => new Date().toISOString()
+
+function buildTable(overrides: Partial<Table> = {}): Table {
+    return {
+        id: 't1',
+        restaurantId: 'r1',
+        number: 1,
+        description: 'Ventana',
+        capacity: 4,
+        status: 'libre',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        ...overrides
+    }
+}
 
 async function insertRestaurant(db: Database, id: string) {
     await db.run(
@@ -45,5 +61,43 @@ describe('tables schema (Integration)', () => {
             'INSERT INTO tables (id, restaurant_id, number, description, capacity, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
             ['s3', 'nope', 1, null, 2, now(), now()]
         )).rejects.toThrow(/FOREIGN KEY/)
+    })
+})
+
+describe('SqliteTableRepository (Integration)', () => {
+    let db: Database
+    let repo: SqliteTableRepository
+
+    beforeAll(async () => {
+        process.env.NODE_ENV = 'test'
+        db = new Database()
+        await db.initialize()
+        await insertRestaurant(db, 'r1')
+        await insertRestaurant(db, 'r2')
+        repo = new SqliteTableRepository(db)
+    })
+
+    afterAll(async () => {
+        await db.close()
+    })
+
+    describe('save / findById', () => {
+        it('should insert a table and find it by id mapped to camelCase', async () => {
+            await repo.save(buildTable())
+
+            const found = await repo.findById('t1')
+            expect(found).toEqual(buildTable())
+        })
+
+        it('should return null when the table does not exist', async () => {
+            expect(await repo.findById('nope')).toBeNull()
+        })
+
+        it('should update an existing table', async () => {
+            await repo.save(buildTable({ number: 2, description: null, capacity: 6, status: 'reservada', updatedAt: '2026-02-01T00:00:00.000Z' }))
+
+            const found = await repo.findById('t1')
+            expect(found).toEqual(buildTable({ number: 2, description: null, capacity: 6, status: 'reservada', updatedAt: '2026-02-01T00:00:00.000Z' }))
+        })
     })
 })
