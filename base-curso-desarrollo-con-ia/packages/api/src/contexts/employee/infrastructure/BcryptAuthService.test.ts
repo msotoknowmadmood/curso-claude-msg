@@ -3,6 +3,30 @@ import jwt from 'jsonwebtoken'
 import { BcryptAuthService } from '@employee/infrastructure/BcryptAuthService.js'
 
 describe('BcryptAuthService', () => {
+    describe('hashPassword / comparePasswords', () => {
+        it('hashes the password so the stored value differs from the plain one', async () => {
+            const authService = new BcryptAuthService()
+
+            const hash = await authService.hashPassword('password123')
+
+            expect(hash).not.toBe('password123')
+        })
+
+        it('validates a correct password against its hash', async () => {
+            const authService = new BcryptAuthService()
+            const hash = await authService.hashPassword('password123')
+
+            await expect(authService.comparePasswords('password123', hash)).resolves.toBe(true)
+        })
+
+        it('rejects an incorrect password against the hash', async () => {
+            const authService = new BcryptAuthService()
+            const hash = await authService.hashPassword('password123')
+
+            await expect(authService.comparePasswords('wrong-password', hash)).resolves.toBe(false)
+        })
+    })
+
     describe('generateToken', () => {
         it('generates a token that expires 24h after issuance', () => {
             const authService = new BcryptAuthService()
