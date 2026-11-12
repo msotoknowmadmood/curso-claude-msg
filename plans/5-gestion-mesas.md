@@ -116,7 +116,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 
 ### API — HTTP
 
-- [ ] 14. Crear `controllers/table.controller.ts` con `create`, `getAll`, `getById`, `update`, `delete` (arrow functions, `next(error)` en el `catch`, `restaurantId` desde `req.params`).
+- [x] 14. Crear `controllers/table.controller.ts` con `create`, `getAll`, `getById`, `update`, `delete` (arrow functions, `next(error)` en el `catch`, `restaurantId` desde `req.params`).
 - [ ] 15. Añadir en el controlador `changeStatus` (body `{ status }`), `getAvailable` (query `?people=`, convertido a número) y `occupy` (devuelve la mesa ocupada).
 - [ ] 16. Crear `routes/table.routes.ts` (`mergeParams: true`): `GET /available` y `PATCH /:id/occupy` solo con `authenticate`; `GET /` y `GET /:id` para `admin, manager, camarero, cocinero`; `PATCH /:id/status` para `admin, manager, camarero, cocinero`; `POST /`, `PUT /:id`, `DELETE /:id` solo `admin`. Declarar `/available` antes de `/:id`. Montar en `app.ts` bajo `/api/v1/restaurants/:restaurantId/tables`.
 - [ ] 17. Añadir `tableNumber` a `Order` y `LEFT JOIN tables t ON t.id = o.table_id` en las consultas de `order.repository.ts` (`findById`, `findActiveByRestaurant`, `findByClientId`); ajustar `MockOrderRepository` si hace falta y comprobar que `order.service.test.ts` sigue en verde.
