@@ -15,6 +15,6 @@ export class BcryptAuthService implements IAuthService {
     }
 
     generateToken(payload: any): string {
-        return jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' })
+        return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' })
     }
 }

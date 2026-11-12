@@ -35,7 +35,7 @@ Asegurar que el login y el registro de usuarios del contexto `employee` cumplen 
 
 > Cada tarea debe poder completarse en 5-10 minutos. Si una tarea es más grande, divídela.
 
-- [ ] 1. Crear `BcryptAuthService.test.ts` con un test que llame a `generateToken({ id, role, restaurantId })`, decodifique el token con `jwt.decode(token, { complete: true })` y compruebe que `decoded.payload.exp - decoded.payload.iat === 24 * 60 * 60` (24h en segundos); confirmar que falla contra el código actual (hoy son 8h) y luego cambiar `{ expiresIn: '8h' }` por `{ expiresIn: '24h' }` en `BcryptAuthService.generateToken` hasta que el test pase.
+- [x] 1. Crear `BcryptAuthService.test.ts` con un test que llame a `generateToken({ id, role, restaurantId })`, decodifique el token con `jwt.decode(token, { complete: true })` y compruebe que `decoded.payload.exp - decoded.payload.iat === 24 * 60 * 60` (24h en segundos); confirmar que falla contra el código actual (hoy son 8h) y luego cambiar `{ expiresIn: '8h' }` por `{ expiresIn: '24h' }` en `BcryptAuthService.generateToken` hasta que el test pase.
 - [ ] 2. En el mismo archivo, añadir un test que compruebe que `hashPassword` devuelve un hash distinto de la contraseña en plano y que `comparePasswords` valida correctamente contraseña correcta/incorrecta contra ese hash.
 - [ ] 3. Añadir un test que compruebe que el payload decodificado del token contiene `id`, `role` y `restaurantId` tal cual se pasaron a `generateToken`.
 - [ ] 4. En `RegisterClientUseCase.test.ts`, añadir un test que compruebe que `employeeRepo.save` se llama con un `Employee` cuyo `passwordHash` es el valor devuelto por `authService.hashPassword` (mock), nunca la contraseña en plano recibida en el DTO.
