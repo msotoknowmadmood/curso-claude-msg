@@ -37,5 +37,15 @@ describe('BcryptAuthService', () => {
             const payload = decoded!.payload as jwt.JwtPayload
             expect(payload.exp! - payload.iat!).toBe(24 * 60 * 60)
         })
+
+        it('includes id, role and restaurantId in the token payload', () => {
+            const authService = new BcryptAuthService()
+
+            const token = authService.generateToken({ id: 'emp-1', role: 'manager', restaurantId: 'rest-1' })
+            const decoded = jwt.decode(token, { complete: true })
+            const payload = decoded!.payload as jwt.JwtPayload
+
+            expect(payload).toMatchObject({ id: 'emp-1', role: 'manager', restaurantId: 'rest-1' })
+        })
     })
 })
