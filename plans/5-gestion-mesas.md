@@ -103,7 +103,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 - [x] 4. Crear `repositories/table.repository.ts` con la interfaz `TableRepository` y `SqliteTableRepository.save()` (UPDATE/INSERT) + `findById()` con alias `snake_case → camelCase`; test de integración en `table.repository.test.ts` (guardar y recuperar).
 - [x] 5. Implementar `findByRestaurantId()` (ordenado por `number`) y `findByRestaurantAndNumber()` con sus tests de integración.
 - [x] 6. Implementar `delete()` y `findAvailable(restaurantId, people)` (`status = 'libre' AND capacity >= ?`, ordenado por `capacity, number`) con tests: excluye ocupadas/reservadas, excluye capacidad insuficiente, excluye otros restaurantes.
-- [ ] 7. Implementar `occupyIfFree(id)` con `UPDATE tables SET status='ocupada', updated_at=? WHERE id=? AND status='libre'` devolviendo `changes === 1`; test: primera llamada `true`, segunda `false`.
+- [x] 7. Implementar `occupyIfFree(id)` con `UPDATE tables SET status='ocupada', updated_at=? WHERE id=? AND status='libre'` devolviendo `changes === 1`; test: primera llamada `true`, segunda `false`.
 - [ ] 8. Crear `repositories/mocks/MockTableRepository.ts` (array en memoria) implementando toda la interfaz.
 
 ### API — servicio

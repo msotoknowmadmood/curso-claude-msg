@@ -23,6 +23,7 @@ export interface TableRepository {
     findAvailable(restaurantId: string, people: number): Promise<Table[]>
     save(table: Table): Promise<void>
     delete(id: string): Promise<void>
+    occupyIfFree(id: string): Promise<boolean>
 }
 
 export class SqliteTableRepository implements TableRepository {
@@ -55,6 +56,15 @@ export class SqliteTableRepository implements TableRepository {
 
     async delete(id: string): Promise<void> {
         await this.db.run('DELETE FROM tables WHERE id = ?', [id])
+    }
+
+    // Atómico: el WHERE status = 'libre' garantiza que solo una petición concurrente gana.
+    async occupyIfFree(id: string): Promise<boolean> {
+        const result = await this.db.run(
+            `UPDATE tables SET status = 'ocupada', updated_at = ? WHERE id = ? AND status = 'libre'`,
+            [new Date().toISOString(), id]
+        )
+        return result.changes === 1
     }
 
     async save(table: Table): Promise<void> {

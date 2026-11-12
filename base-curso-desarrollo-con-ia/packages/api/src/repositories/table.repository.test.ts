@@ -170,4 +170,27 @@ describe('SqliteTableRepository (Integration)', () => {
             expect(tables).toHaveLength(4)
         })
     })
+
+    describe('occupyIfFree', () => {
+        it('should occupy a free table only once', async () => {
+            await repo.save(buildTable({ id: 'occ-1', restaurantId: 'r4', number: 2, status: 'libre' }))
+
+            expect(await repo.occupyIfFree('occ-1')).toBe(true)
+            const occupied = await repo.findById('occ-1')
+            expect(occupied?.status).toBe('ocupada')
+            expect(occupied?.updatedAt).not.toBe('2026-01-01T00:00:00.000Z')
+
+            expect(await repo.occupyIfFree('occ-1')).toBe(false)
+        })
+
+        it('should not occupy a reserved table', async () => {
+            await repo.save(buildTable({ id: 'occ-2', restaurantId: 'r4', number: 3, status: 'reservada' }))
+            expect(await repo.occupyIfFree('occ-2')).toBe(false)
+            expect((await repo.findById('occ-2'))?.status).toBe('reservada')
+        })
+
+        it('should return false for a non-existent table', async () => {
+            expect(await repo.occupyIfFree('nope')).toBe(false)
+        })
+    })
 })
