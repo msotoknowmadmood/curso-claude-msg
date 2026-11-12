@@ -1,0 +1,31 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Angular
+.angular/
+dist/
+/tmp
+/out-tsc
+
+# API
+packages/api/resttek.db
+packages/api/*.db
+
+# System files
+.DS_Store
+Thumbs.db
+__MACOSX/
+
+# IDEs and editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Misc
+coverage/
+*.log

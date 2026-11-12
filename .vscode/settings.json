@@ -1,0 +1,4 @@
+{
+  "typescript.tsdk": "base-curso-desarrollo-con-ia/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}
