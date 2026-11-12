@@ -3,7 +3,8 @@ import { IngredientController } from '@controllers/ingredient.controller.js'
 import { dbConfig } from '@config/database.js'
 import { SqliteIngredientRepository } from '@repositories/ingredient.repository.js'
 import { IngredientService } from '@services/ingredient.service.js'
-import { authenticate, authorize } from '@shared/infrastructure/http/middlewares.js'
+import { authenticate } from '@shared/infrastructure/http/middlewares/authenticate.js'
+import { authorize } from '@shared/infrastructure/http/middlewares/authorize.js'
 
 const ingredientRepository = new SqliteIngredientRepository(dbConfig)
 const ingredientService = new IngredientService(ingredientRepository)

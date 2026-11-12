@@ -1,0 +1,1948 @@
+openapi: 3.0.3
+info:
+  title: Resttek API
+  version: 1.0.2
+  description: |
+    API REST de Resttek, plataforma de gestión de restaurantes (panel de administración,
+    app de empleados y app de clientes). Express 5 + TypeScript + SQLite.
+
+    ## Autenticación
+    Los endpoints protegidos exigen `Authorization: Bearer <jwt>` (token obtenido en
+    `POST /auth/login` o `POST /auth/register`, caduca a las 24 h). El payload del JWT
+    contiene `id`, `role` y `restaurantId`.
+
+    ## Roles
+    `admin`, `manager`, `camarero`, `cocinero`, `cliente`. Los roles aceptados por cada
+    operación se indican en su descripción y en la extensión `x-roles`
+    (`["*"]` = cualquier usuario autenticado; ausente = público).
+
+    ## Formato de los errores
+    Hay **tres** formas de error distintas, según quién responda:
+
+    1. **`errorHandler`** (errores de dominio `AppError` lanzados por servicios/controladores,
+       salvo pedidos): `{ "error": "<NombreDelError>", "message": "<texto>" }`.
+       - 404 para `EmployeeNotFoundError`, `RestaurantNotFoundError`, `IngredientNotFoundError`,
+         `DishNotFoundError` y (NUEVO issue 5) `TableNotFoundError`.
+       - 401 para `InvalidCredentialsError`.
+       - 400 para cualquier otro `AppError`.
+       - 500 `{ "error": "InternalServerError", "message": "Something went wrong" }` para el resto.
+       **Los clientes distinguen los errores por el campo `error` (nombre de la clase, estable,
+       p. ej. `TableNotAvailableError`) y nunca por `message`**, que es texto libre en inglés
+       y puede cambiar.
+    2. **Middlewares `authenticate` / `authorize`**: responden directamente con
+       `{ "error": "<texto>" }` (sin `message`): 401 `Unauthorized: ...` o
+       403 `Forbidden: Insufficient permissions`.
+    3. **`OrderController`** (todas las rutas `/orders`): gestiona sus propios errores y responde
+       `{ "error": "<mensaje del error>" }` (sin `message`, y `error` contiene el texto, no el nombre).
+
+    ## Novedades de la issue 5 (gestión de mesas)
+    Todo lo marcado como **NUEVO (issue 5)** (tag `Tables`, campo `Order.tableNumber`,
+    uso de `tableId` en `POST /orders`) se añadió en la issue 5 y **ya está implementado** en la API.
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Desarrollo local (las apps Angular lo alcanzan vía proxy `/api`)
+tags:
+  - name: Health
+    description: Estado del servicio.
+  - name: Auth
+    description: Login y auto-registro de clientes.
+  - name: Public
+    description: Endpoints públicos para la app de clientes (sin autenticación).
+  - name: Restaurants
+    description: Gestión de restaurantes.
+  - name: Employees
+    description: Gestión de empleados (contexto hexagonal `employee`).
+  - name: Dishes
+    description: Carta de platos por restaurante.
+  - name: Ingredients
+    description: Inventario de ingredientes por restaurante.
+  - name: Tables
+    description: |
+      **NUEVO (issue 5).** Mesas de cada restaurante: CRUD (admin),
+      cambio de estado (empleados), búsqueda de mesas libres y ocupación atómica (cliente).
+  - name: Orders
+    description: |
+      Pedidos. Ninguna ruta aplica `authorize()`: basta con estar autenticado.
+      Errores con formato propio `{ error: <mensaje> }` (no pasan por el `errorHandler`).
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Healthcheck
+      description: Público. **No lleva el prefijo `/api/v1`**.
+      servers:
+        - url: http://localhost:3000
+      security: []
+      responses:
+        '200':
+          description: Servicio operativo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ---------------------------------------------------------------- Auth
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Login (cualquier rol)
+      description: Público. Mismo endpoint para empleados y clientes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Credenciales válidas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: '`InvalidCredentialsError` (email inexistente o contraseña incorrecta).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: InvalidCredentialsError
+                message: Invalid credentials
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: registerClient
+      summary: Auto-registro de cliente
+      description: |
+        Público. Crea un usuario con `role: cliente` y `restaurantId: null`; cualquier `role`
+        o `restaurantId` enviado en el body se ignora.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Cliente registrado y autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: |
+            `DuplicatedEmailError`, `InvalidEmailError`, `FirstNameRequiredError`,
+            `LastNameRequiredError`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: DuplicatedEmailError
+                message: Email is already in use
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ---------------------------------------------------------------- Public
+  /public/restaurants:
+    get:
+      tags: [Public]
+      operationId: listPublicRestaurants
+      summary: Listado público de restaurantes
+      security: []
+      responses:
+        '200':
+          description: Todos los restaurantes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Restaurant'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /public/restaurants/{id}:
+    get:
+      tags: [Public]
+      operationId: getPublicRestaurant
+      summary: Detalle público de restaurante
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Restaurante.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
+        '404':
+          $ref: '#/components/responses/RestaurantNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /public/restaurants/{restaurantId}/dishes:
+    get:
+      tags: [Public]
+      operationId: listPublicDishes
+      summary: Carta pública (solo platos disponibles)
+      description: Devuelve solo los platos con `available = true`. No comprueba que el restaurante exista (devuelve `[]`).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RestaurantId'
+      responses:
+        '200':
+          description: Platos disponibles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dish'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ---------------------------------------------------------------- Restaurants
+  /restaurants:
+    get:
+      tags: [Restaurants]
+      operationId: listRestaurants
+      summary: Listado de restaurantes visibles para el usuario
+      description: |
+        Roles: cualquier usuario autenticado.
+        Si el rol es `admin` devuelve todos; si no, un array con el restaurante de
+        `req.user.restaurantId`, o `[]` si el usuario no tiene restaurante.
+      x-roles: ['*']
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Restaurantes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Restaurant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RestaurantNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Restaurants]
+      operationId: createRestaurant
+      summary: Crear restaurante
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestaurantInput'
+      responses:
+        '201':
+          description: Restaurante creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
+        '400':
+          $ref: '#/components/responses/RestaurantValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Restaurants]
+      operationId: getRestaurant
+      summary: Detalle de restaurante
+      description: 'Roles: cualquier usuario autenticado.'
+      x-roles: ['*']
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Restaurante.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RestaurantNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Restaurants]
+      operationId: updateRestaurant
+      summary: Actualizar restaurante (reemplazo completo)
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestaurantInput'
+      responses:
+        '200':
+          description: Restaurante actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
+        '400':
+          $ref: '#/components/responses/RestaurantValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/RestaurantNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ---------------------------------------------------------------- Employees
+  /employees:
+    get:
+      tags: [Employees]
+      operationId: listEmployees
+      summary: Listado paginado de empleados
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: role
+          in: query
+          required: false
+          description: Filtra por rol.
+          schema:
+            $ref: '#/components/schemas/EmployeeRole'
+      responses:
+        '200':
+          description: Empleados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Employees]
+      operationId: createEmployee
+      summary: Alta de empleado
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: Empleado creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          description: |
+            `DuplicatedEmailError`, `InvalidEmailError`, `InvalidRoleError`,
+            `FirstNameRequiredError`, `LastNameRequiredError`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /employees/{id}:
+    get:
+      tags: [Employees]
+      operationId: getEmployee
+      summary: Detalle de empleado
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Empleado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: '`EmployeeNotFoundError`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: EmployeeNotFoundError
+                message: Employee not found
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{restaurantId}/employees:
+    get:
+      tags: [Employees]
+      operationId: listRestaurantEmployees
+      summary: Empleados de un restaurante
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RestaurantId'
+      responses:
+        '200':
+          description: Empleados del restaurante.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ---------------------------------------------------------------- Dishes
+  /restaurants/{restaurantId}/dishes:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+    get:
+      tags: [Dishes]
+      operationId: listDishes
+      summary: Platos del restaurante (incluidos no disponibles)
+      description: 'Roles: admin, manager, camarero, cocinero.'
+      x-roles: [admin, manager, camarero, cocinero]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Platos.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dish'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Dishes]
+      operationId: createDish
+      summary: Crear plato
+      description: 'Roles: admin, manager.'
+      x-roles: [admin, manager]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDishRequest'
+      responses:
+        '201':
+          description: Plato creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/DishValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{restaurantId}/dishes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Dishes]
+      operationId: getDish
+      summary: Detalle de plato
+      description: 'Roles: admin, manager, camarero, cocinero.'
+      x-roles: [admin, manager, camarero, cocinero]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Plato.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DishNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Dishes]
+      operationId: updateDish
+      summary: Actualizar plato (reemplazo completo)
+      description: 'Roles: admin, manager.'
+      x-roles: [admin, manager]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDishRequest'
+      responses:
+        '200':
+          description: Plato actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dish'
+        '400':
+          $ref: '#/components/responses/DishValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DishNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Dishes]
+      operationId: deleteDish
+      summary: Borrar plato
+      description: 'Roles: admin, manager.'
+      x-roles: [admin, manager]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Plato borrado (sin cuerpo).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/DishNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ---------------------------------------------------------------- Ingredients
+  /restaurants/{restaurantId}/ingredients:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+    get:
+      tags: [Ingredients]
+      operationId: listIngredients
+      summary: Ingredientes del restaurante
+      description: 'Roles: admin, manager, cocinero.'
+      x-roles: [admin, manager, cocinero]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ingredientes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ingredient'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Ingredients]
+      operationId: createIngredient
+      summary: Crear ingrediente
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIngredientRequest'
+      responses:
+        '201':
+          description: Ingrediente creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ingredient'
+        '400':
+          $ref: '#/components/responses/IngredientValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{restaurantId}/ingredients/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Ingredients]
+      operationId: getIngredient
+      summary: Detalle de ingrediente
+      description: 'Roles: admin, manager, cocinero.'
+      x-roles: [admin, manager, cocinero]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ingrediente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ingredient'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/IngredientNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Ingredients]
+      operationId: updateIngredient
+      summary: Actualizar ingrediente (reemplazo completo)
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIngredientRequest'
+      responses:
+        '200':
+          description: Ingrediente actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ingredient'
+        '400':
+          $ref: '#/components/responses/IngredientValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/IngredientNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Ingredients]
+      operationId: deleteIngredient
+      summary: Borrar ingrediente
+      description: 'Roles: admin.'
+      x-roles: [admin]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Ingrediente borrado (sin cuerpo).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/IngredientNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ---------------------------------------------------------------- Tables (NUEVO issue 5)
+  /restaurants/{restaurantId}/tables:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+    get:
+      tags: [Tables]
+      operationId: listTables
+      summary: Mesas del restaurante — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: admin, manager, camarero, cocinero.
+        Devuelve todas las mesas del restaurante (cualquier estado), ordenadas por `number` ascendente.
+        Si el restaurante no existe o no tiene mesas devuelve `[]`.
+        No se comprueba que el empleado pertenezca a `restaurantId` (misma convención que platos/ingredientes).
+      x-roles: [admin, manager, camarero, cocinero]
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mesas ordenadas por número.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Table'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Tables]
+      operationId: createTable
+      summary: Crear mesa — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: admin.
+        `restaurantId` se toma de la ruta (se ignora si viene en el body). Si el restaurante
+        no existe → 404 `RestaurantNotFoundError` (el servicio lo comprueba con el repositorio
+        de restaurantes antes de insertar; no llega a fallar la FK).
+        `number` y `capacity` deben ser **enteros JSON**: un string (`"3"`), un decimal o un valor ≤ 0
+        → 400 `InvalidTableNumberError` / `InvalidTableCapacityError`.
+        `status` es opcional (por defecto `libre`) y se normaliza (`trim` + minúsculas).
+      x-roles: [admin]
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTableRequest'
+      responses:
+        '201':
+          description: Mesa creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Table'
+        '400':
+          $ref: '#/components/responses/TableValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/RestaurantNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{restaurantId}/tables/available:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+    get:
+      tags: [Tables]
+      operationId: listAvailableTables
+      summary: Mesas libres con capacidad suficiente — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: cualquier usuario autenticado (pensado para `cliente`).
+        Devuelve las mesas del restaurante con `status = libre` y `capacity >= people`,
+        ordenadas por `capacity` y después por `number` (ascendente). `[]` si no hay ninguna.
+        Se declara antes de `/{id}` en el router para que `available` no se interprete como id.
+      x-roles: ['*']
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: people
+          in: query
+          required: true
+          description: |
+            Número de comensales. Entero ≥ 1. Si falta, no es numérico (`abc`), es decimal (`2.5`)
+            o es ≤ 0, la API responde **400 `InvalidPeopleCountError`** (nunca 500 ni `[]`).
+          schema:
+            type: integer
+            minimum: 1
+            example: 4
+      responses:
+        '200':
+          description: Mesas disponibles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Table'
+        '400':
+          description: |
+            `InvalidPeopleCountError`: `people` ausente, no numérico (`abc`), decimal (`2.5`) o ≤ 0.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing:
+                  summary: Sin `people`
+                  value:
+                    error: InvalidPeopleCountError
+                    message: People count must be a positive integer
+                notNumeric:
+                  summary: '`?people=abc`'
+                  value:
+                    error: InvalidPeopleCountError
+                    message: People count must be a positive integer
+                decimal:
+                  summary: '`?people=2.5`'
+                  value:
+                    error: InvalidPeopleCountError
+                    message: People count must be a positive integer
+                zero:
+                  summary: '`?people=0`'
+                  value:
+                    error: InvalidPeopleCountError
+                    message: People count must be a positive integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{restaurantId}/tables/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+      - $ref: '#/components/parameters/TableId'
+    get:
+      tags: [Tables]
+      operationId: getTable
+      summary: Detalle de mesa — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: admin, manager, camarero, cocinero.
+        404 si la mesa no existe **o pertenece a otro restaurante**.
+      x-roles: [admin, manager, camarero, cocinero]
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mesa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Table'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TableNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Tables]
+      operationId: updateTable
+      summary: Actualizar mesa — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: admin.
+        Reemplaza `number`, `capacity` y `description` (si `description` se omite queda a `null`).
+        `status` es opcional: si se omite, **se conserva el estado actual**.
+        `id`, `restaurantId` y `createdAt` no cambian; `updatedAt` se actualiza.
+        El número duplicado se comprueba ignorando la propia mesa.
+      x-roles: [admin]
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTableRequest'
+      responses:
+        '200':
+          description: Mesa actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Table'
+        '400':
+          $ref: '#/components/responses/TableValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TableNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Tables]
+      operationId: deleteTable
+      summary: Borrar mesa — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: admin.
+        Se permite borrar una mesa en cualquier estado. Los pedidos que la referenciaban
+        conservan su `tableId` y pasan a devolver `tableNumber: null`.
+      x-roles: [admin]
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Mesa borrada (sin cuerpo).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TableNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{restaurantId}/tables/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+      - $ref: '#/components/parameters/TableId'
+    patch:
+      tags: [Tables]
+      operationId: changeTableStatus
+      summary: Cambiar estado de una mesa — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: admin, manager, camarero, cocinero.
+        Fija cualquier estado (`libre`, `ocupada`, `reservada`) sin restricciones de transición.
+        **Liberar una mesa es solo manual**, con este endpoint (`{ "status": "libre" }`): no hay
+        liberación automática al entregar/pagar ni por tiempo. El valor se normaliza (`trim` + minúsculas).
+      x-roles: [admin, manager, camarero, cocinero]
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeTableStatusRequest'
+      responses:
+        '200':
+          description: Mesa con el estado actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Table'
+        '400':
+          description: '`InvalidTableStatusError` (falta `status` o no es un valor válido).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: InvalidTableStatusError
+                message: 'Invalid table status: sucia. Must be one of: libre, ocupada, reservada'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TableNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restaurants/{restaurantId}/tables/{id}/occupy:
+    parameters:
+      - $ref: '#/components/parameters/RestaurantId'
+      - $ref: '#/components/parameters/TableId'
+    patch:
+      tags: [Tables]
+      operationId: occupyTable
+      summary: Ocupar una mesa libre — NUEVO (issue 5)
+      description: |
+        **NUEVO (issue 5).** Roles: cualquier usuario autenticado (pensado para `cliente`).
+        No necesita cuerpo: se acepta sin body, con body vacío o con `{}` (cualquier contenido se ignora).
+        Pasa la mesa de `libre` a `ocupada` de forma **atómica**
+        (`UPDATE ... WHERE status = 'libre'`): si dos clientes compiten por la misma mesa,
+        solo el primero recibe 200; el segundo recibe 400 `TableNotAvailableError`.
+        Solo se puede ocupar una mesa `libre`: si está `ocupada` **o `reservada`** → 400
+        `TableNotAvailableError`. La mesa vuelve a `libre` solo manualmente, vía `PATCH .../status`.
+      x-roles: ['*']
+      x-status: nuevo-issue-5
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        description: Opcional e ignorado. Puede omitirse o enviarse `{}`.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example: {}
+      responses:
+        '200':
+          description: Mesa ocupada (ya con `status = ocupada`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Table'
+        '400':
+          description: '`TableNotAvailableError`: la mesa no está `libre` (está `ocupada` o `reservada`, o la acaba de ocupar otro cliente).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: TableNotAvailableError
+                message: Table is not available
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/TableNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ---------------------------------------------------------------- Orders
+  /orders:
+    post:
+      tags: [Orders]
+      operationId: createOrder
+      summary: Crear pedido
+      description: |
+        Roles: cualquier usuario autenticado. El `clientId` se toma del JWT (`req.user.id`), no del body.
+        Cada ítem con `quantity: N` se expande en N ítems con `quantity: 1` y `status: pendiente`.
+
+        **NUEVO (issue 5):** el cliente envía `tableId` (id de la mesa ocupada con
+        `PATCH .../tables/{id}/occupy`). La API **no valida** que la mesa exista, pertenezca al
+        restaurante ni esté ocupada (fuera de alcance). La respuesta de este endpoint **no incluye**
+        `tableNumber`, `restaurantName`, `restaurantLogoUrl` ni los campos `dish*` de los ítems.
+      x-roles: ['*']
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Pedido creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: |
+            Cualquier error al crear (p. ej. `restaurantId` vacío → `Restaurant ID is required`,
+            `items` ausente). Formato propio de `OrderController`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleError'
+              example:
+                error: Restaurant ID is required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/OrderInternalError'
+
+  /orders/active:
+    get:
+      tags: [Orders]
+      operationId: listActiveOrders
+      summary: Pedidos activos de un restaurante
+      description: |
+        Roles: cualquier usuario autenticado.
+        Pedidos del restaurante con al menos un ítem en estado distinto de `entregado`,
+        ordenados por `createdAt` ascendente. Incluye `tableNumber` (NUEVO issue 5);
+        no incluye `restaurantName`/`restaurantLogoUrl`.
+      x-roles: ['*']
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: restaurantId
+          in: query
+          required: true
+          schema:
+            type: string
+            example: rest-1
+      responses:
+        '200':
+          description: Pedidos activos.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '400':
+          description: Falta `restaurantId`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleError'
+              example:
+                error: restaurantId is required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/OrderInternalError'
+
+  /orders/mine:
+    get:
+      tags: [Orders]
+      operationId: listMyOrders
+      summary: Pedidos del usuario autenticado
+      description: |
+        Roles: cualquier usuario autenticado. Pedidos cuyo `clientId` es el del JWT,
+        ordenados por `createdAt` descendente. Incluye `restaurantName`, `restaurantLogoUrl`
+        y `tableNumber` (NUEVO issue 5).
+      x-roles: ['*']
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pedidos del usuario.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/OrderInternalError'
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      operationId: getOrder
+      summary: Detalle de pedido
+      description: |
+        Roles: cualquier usuario autenticado (no se comprueba que el pedido sea del usuario).
+        Incluye `restaurantName`, `restaurantLogoUrl` y `tableNumber` (NUEVO issue 5).
+      x-roles: ['*']
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Pedido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Pedido inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleError'
+              example:
+                error: Order not found
+        '500':
+          $ref: '#/components/responses/OrderInternalError'
+
+  /orders/{orderId}/items/{itemId}/status:
+    patch:
+      tags: [Orders]
+      operationId: updateOrderItemStatus
+      summary: Cambiar estado de un ítem de pedido
+      description: 'Roles: cualquier usuario autenticado (no hay `authorize()`).'
+      x-roles: ['*']
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: '#/components/schemas/OrderItemStatus'
+      responses:
+        '204':
+          description: Estado actualizado (sin cuerpo).
+        '400':
+          description: |
+            Pedido o ítem inexistente (`Order not found`, devuelto como 400, no 404) o estado inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleError'
+              example:
+                error: 'Estado inválido: foo. Debe ser uno de: pendiente, preparando, listo, entregado'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/OrderInternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    RestaurantId:
+      name: restaurantId
+      in: path
+      required: true
+      schema:
+        type: string
+        example: rest-1
+    TableId:
+      name: id
+      in: path
+      required: true
+      description: Id de la mesa (UUID; las del seed usan ids fijos como `table-1-3`).
+      schema:
+        type: string
+        example: table-1-3
+
+  responses:
+    Unauthorized:
+      description: |
+        Respondido por `authenticate`: falta la cabecera, token mal formado, inválido o caducado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SimpleError'
+          examples:
+            noToken:
+              value:
+                error: 'Unauthorized: No token provided'
+            malformed:
+              value:
+                error: 'Unauthorized: Malformed token'
+            invalid:
+              value:
+                error: 'Unauthorized: Invalid token'
+    Forbidden:
+      description: 'Respondido por `authorize(roles)`: el rol del JWT no está en la lista permitida.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SimpleError'
+          example:
+            error: 'Forbidden: Insufficient permissions'
+    InternalError:
+      description: Error no controlado (no es `AppError`), traducido por `errorHandler`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: InternalServerError
+            message: Something went wrong
+    OrderInternalError:
+      description: Error no controlado en `OrderController`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SimpleError'
+          example:
+            error: Internal Server Error
+    RestaurantNotFound:
+      description: '`RestaurantNotFoundError`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: RestaurantNotFoundError
+            message: Restaurant not found
+    RestaurantValidationError:
+      description: |
+        `RestaurantNameRequiredError`, `RestaurantAddressRequiredError`, `OwnerFirstNameRequiredError`,
+        `OwnerLastNameRequiredError`, `InvalidEmailError`, `InvalidPhoneError`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: InvalidPhoneError
+            message: Invalid phone format
+    DishNotFound:
+      description: '`DishNotFoundError`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: DishNotFoundError
+            message: Dish not found
+    DishValidationError:
+      description: |
+        `DishNameRequiredError`, `InvalidPriceError`, `InvalidCategoryError`, `RestaurantIdRequiredError`.
+        (Un ingrediente inválido en `ingredients` lanza un `Error` genérico → 500.)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: InvalidPriceError
+            message: Price must be a positive number
+    IngredientNotFound:
+      description: '`IngredientNotFoundError`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: IngredientNotFoundError
+            message: Ingredient not found
+    IngredientValidationError:
+      description: '`IngredientNameRequiredError`, `InvalidUnitError`, `NegativeStockError`, `RestaurantIdRequiredError`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: InvalidUnitError
+            message: 'Invalid unit: litros. Must be one of: kg, g, l, ml, unidad'
+    TableNotFound:
+      description: |
+        **NUEVO (issue 5).** `TableNotFoundError`: la mesa no existe o no pertenece al
+        `restaurantId` de la ruta.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: TableNotFoundError
+            message: Table not found
+    TableValidationError:
+      description: |
+        **NUEVO (issue 5).** Uno de:
+        - `InvalidTableNumberError` — `number` ausente, `null`, string (p. ej. `"3"`), decimal o ≤ 0.
+        - `InvalidTableCapacityError` — `capacity` ausente, `null`, string (p. ej. `"4"`), decimal o ≤ 0.
+        Solo se aceptan enteros JSON (sin conversión de tipos).
+        - `InvalidTableStatusError` — `status` distinto de `libre`/`ocupada`/`reservada`.
+        - `DuplicatedTableNumberError` — ya existe otra mesa con ese `number` en el mismo restaurante.
+        - `RestaurantIdRequiredError` — `restaurantId` vacío.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            duplicated:
+              value:
+                error: DuplicatedTableNumberError
+                message: Table number already exists in this restaurant
+            invalidNumber:
+              value:
+                error: InvalidTableNumberError
+                message: Table number must be a positive integer
+            invalidCapacity:
+              value:
+                error: InvalidTableCapacityError
+                message: Table capacity must be a positive integer
+            invalidStatus:
+              value:
+                error: InvalidTableStatusError
+                message: 'Invalid table status: sucia. Must be one of: libre, ocupada, reservada'
+
+  schemas:
+    # ------------------------------------------------ Errores
+    Error:
+      type: object
+      description: Error producido por `errorHandler`.
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: |
+            Nombre de la clase del error de dominio (`err.name`). Es el campo que usan los clientes
+            para distinguir errores.
+          example: TableNotFoundError
+        message:
+          type: string
+          description: Texto legible del error, en inglés. No usarlo para distinguir errores.
+          example: Table not found
+    SimpleError:
+      type: object
+      description: Error de los middlewares `authenticate`/`authorize` y de `OrderController` (solo `error`, con un texto).
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: 'Forbidden: Insufficient permissions'
+
+    # ------------------------------------------------ Auth / Employees
+    EmployeeRole:
+      type: string
+      enum: [admin, manager, camarero, cocinero, cliente]
+    Employee:
+      type: object
+      required: [id, firstName, lastName, email, role, restaurantId]
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/EmployeeRole'
+        restaurantId:
+          type: string
+          nullable: true
+          description: '`null` para `admin` y `cliente`.'
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@resttek.com
+        password:
+          type: string
+          example: admin@resttek.com
+    RegisterRequest:
+      type: object
+      required: [firstName, lastName, email, password]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AuthResponse:
+      type: object
+      required: [token, employee]
+      properties:
+        token:
+          type: string
+          description: JWT (24 h) con payload `{ id, role, restaurantId }`.
+        employee:
+          $ref: '#/components/schemas/Employee'
+    CreateEmployeeRequest:
+      type: object
+      required: [firstName, lastName, email, password, role]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        role:
+          $ref: '#/components/schemas/EmployeeRole'
+        restaurantId:
+          type: string
+          nullable: true
+          default: null
+
+    # ------------------------------------------------ Restaurants
+    Restaurant:
+      type: object
+      required: [id, name, address, email, phone, ownerFirstName, ownerLastName, logoUrl, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          example: rest-1
+        name:
+          type: string
+        address:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        ownerFirstName:
+          type: string
+        ownerLastName:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    RestaurantInput:
+      type: object
+      required: [name, address, email, phone, ownerFirstName, ownerLastName]
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          pattern: '^\+?[\d\s\-()]{7,20}$'
+        ownerFirstName:
+          type: string
+        ownerLastName:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+          default: null
+
+    # ------------------------------------------------ Dishes
+    DishCategory:
+      type: string
+      enum: [entrante, principal, postre, bebida]
+      description: Se normaliza (`trim` + minúsculas) al guardar.
+    DishIngredient:
+      type: object
+      required: [ingredientId, quantity]
+      properties:
+        ingredientId:
+          type: string
+        quantity:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+    Dish:
+      type: object
+      required: [id, name, description, price, category, available, restaurantId, ingredients, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+        category:
+          $ref: '#/components/schemas/DishCategory'
+        available:
+          type: boolean
+        restaurantId:
+          type: string
+        ingredients:
+          type: array
+          items:
+            $ref: '#/components/schemas/DishIngredient'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateDishRequest:
+      type: object
+      required: [name, price, category]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+          default: null
+        price:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+        category:
+          $ref: '#/components/schemas/DishCategory'
+        available:
+          type: boolean
+          default: true
+        ingredients:
+          type: array
+          default: []
+          items:
+            $ref: '#/components/schemas/DishIngredient'
+    UpdateDishRequest:
+      type: object
+      required: [name, price, category, available]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+          default: null
+        price:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+        category:
+          $ref: '#/components/schemas/DishCategory'
+        available:
+          type: boolean
+        ingredients:
+          type: array
+          default: []
+          items:
+            $ref: '#/components/schemas/DishIngredient'
+
+    # ------------------------------------------------ Ingredients
+    IngredientUnit:
+      type: string
+      enum: [kg, g, l, ml, unidad]
+      description: Se normaliza (`trim` + minúsculas) al guardar.
+    Ingredient:
+      type: object
+      required: [id, name, unit, currentStock, restaurantId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        unit:
+          $ref: '#/components/schemas/IngredientUnit'
+        currentStock:
+          type: number
+          minimum: 0
+        restaurantId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateIngredientRequest:
+      type: object
+      required: [name, unit]
+      properties:
+        name:
+          type: string
+        unit:
+          $ref: '#/components/schemas/IngredientUnit'
+        currentStock:
+          type: number
+          minimum: 0
+          default: 0
+    UpdateIngredientRequest:
+      type: object
+      required: [name, unit, currentStock]
+      properties:
+        name:
+          type: string
+        unit:
+          $ref: '#/components/schemas/IngredientUnit'
+        currentStock:
+          type: number
+          minimum: 0
+
+    # ------------------------------------------------ Tables (NUEVO issue 5)
+    TableStatus:
+      type: string
+      enum: [libre, ocupada, reservada]
+      description: |
+        **NUEVO (issue 5).** Estado de la mesa. En la entrada se acepta con espacios/mayúsculas
+        (se normaliza con `trim` + minúsculas); en la salida siempre va en minúsculas.
+        - `libre`: disponible para que un cliente la ocupe.
+        - `ocupada`: la ha ocupado un cliente o la ha marcado un empleado.
+        - `reservada`: fijada manualmente por empleado/admin (no hay flujo de reservas). No se puede
+          ocupar con `PATCH .../occupy` (400 `TableNotAvailableError`).
+        Volver a `libre` es siempre manual, con `PATCH .../status`.
+    Table:
+      type: object
+      description: |
+        **NUEVO (issue 5).** Mesa de un restaurante. Todos los campos están siempre presentes en
+        la respuesta (`description` es `string` o `null`, nunca ausente).
+      required: [id, restaurantId, number, description, capacity, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: UUID (en el seed, ids fijos `table-<n restaurante>-<n mesa>`).
+          example: table-1-3
+        restaurantId:
+          type: string
+          example: rest-1
+        number:
+          type: integer
+          minimum: 1
+          description: Número visible de la mesa, único dentro del restaurante.
+          example: 3
+        description:
+          type: string
+          nullable: true
+          description: Siempre presente; `null` si no tiene descripción.
+          example: Junto a la ventana
+        capacity:
+          type: integer
+          minimum: 1
+          description: Número máximo de comensales.
+          example: 4
+        status:
+          $ref: '#/components/schemas/TableStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateTableRequest:
+      type: object
+      description: |
+        **NUEVO (issue 5).** `restaurantId` se toma de la ruta. `number` y `capacity` deben ser
+        enteros JSON (`"3"` como string → 400).
+      required: [number, capacity]
+      properties:
+        number:
+          type: integer
+          minimum: 1
+          description: Entero JSON ≥ 1. String, decimal o ≤ 0 → 400 `InvalidTableNumberError`.
+          example: 7
+        capacity:
+          type: integer
+          minimum: 1
+          description: Entero JSON ≥ 1. String, decimal o ≤ 0 → 400 `InvalidTableCapacityError`.
+          example: 4
+        description:
+          type: string
+          nullable: true
+          default: null
+          example: Terraza
+        status:
+          allOf:
+            - $ref: '#/components/schemas/TableStatus'
+          default: libre
+    UpdateTableRequest:
+      type: object
+      description: |
+        **NUEVO (issue 5).** `description` omitida → `null`. `status` omitido → se conserva el actual.
+        `number` y `capacity` deben ser enteros JSON (`"3"` como string → 400).
+      required: [number, capacity]
+      properties:
+        number:
+          type: integer
+          minimum: 1
+          description: Entero JSON ≥ 1. String, decimal o ≤ 0 → 400 `InvalidTableNumberError`.
+          example: 7
+        capacity:
+          type: integer
+          minimum: 1
+          description: Entero JSON ≥ 1. String, decimal o ≤ 0 → 400 `InvalidTableCapacityError`.
+          example: 6
+        description:
+          type: string
+          nullable: true
+          default: null
+        status:
+          $ref: '#/components/schemas/TableStatus'
+    ChangeTableStatusRequest:
+      type: object
+      description: '**NUEVO (issue 5).**'
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/TableStatus'
+
+    # ------------------------------------------------ Orders
+    OrderItemStatus:
+      type: string
+      enum: [pendiente, preparando, listo, entregado]
+      description: Se normaliza (`trim` + minúsculas).
+    OrderItem:
+      type: object
+      required: [id, dishId, quantity, notes, status]
+      properties:
+        id:
+          type: string
+        dishId:
+          type: string
+        quantity:
+          type: integer
+          description: Siempre 1 (las cantidades se expanden en ítems individuales).
+          example: 1
+        notes:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/OrderItemStatus'
+        dishName:
+          type: string
+          description: Solo en lecturas (no en la respuesta de `POST /orders`).
+        dishPrice:
+          type: number
+          description: Solo en lecturas (no en la respuesta de `POST /orders`).
+        dishCategory:
+          type: string
+          description: Solo en lecturas (no en la respuesta de `POST /orders`).
+    Order:
+      type: object
+      required: [id, restaurantId, tableId, clientId, createdAt, items]
+      properties:
+        id:
+          type: string
+        restaurantId:
+          type: string
+        tableId:
+          type: string
+          nullable: true
+          description: |
+            Id de la mesa (`Table.id`). Desde la issue 5 debe ser el id de una mesa real; los pedidos
+            antiguos pueden tener valores arbitrarios o `null`.
+          example: table-1-5
+        tableNumber:
+          type: integer
+          nullable: true
+          description: |
+            **NUEVO (issue 5).** `Table.number` de la mesa del pedido, obtenido con `LEFT JOIN tables`.
+            Presente en `GET /orders/active`, `GET /orders/mine` y `GET /orders/{id}`;
+            **ausente** en la respuesta de `POST /orders`. `null` si el pedido no tiene mesa o
+            su `tableId` no corresponde a ninguna mesa existente. Mostrar como
+            `tableNumber ?? tableId`.
+          example: 5
+        clientId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        restaurantName:
+          type: string
+          description: Solo en `GET /orders/mine` y `GET /orders/{id}`.
+        restaurantLogoUrl:
+          type: string
+          nullable: true
+          description: Solo en `GET /orders/mine` y `GET /orders/{id}`.
+    CreateOrderRequest:
+      type: object
+      required: [restaurantId, items]
+      properties:
+        restaurantId:
+          type: string
+          example: rest-1
+        tableId:
+          type: string
+          nullable: true
+          default: null
+          description: |
+            **NUEVO (issue 5):** id de la mesa ocupada por el cliente (`Table.id`, no el `number`).
+            La API lo guarda tal cual, sin validarlo. Si se omite se guarda `null`.
+          example: table-1-3
+        items:
+          type: array
+          items:
+            type: object
+            required: [dishId, quantity]
+            properties:
+              dishId:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+                example: 2
+              notes:
+                type: string
+                nullable: true

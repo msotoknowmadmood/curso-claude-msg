@@ -35,25 +35,25 @@ Asegurar que el login y el registro de usuarios del contexto `employee` cumplen 
 
 > Cada tarea debe poder completarse en 5-10 minutos. Si una tarea es más grande, divídela.
 
-- [ ] 1. Crear `BcryptAuthService.test.ts` con un test que llame a `generateToken({ id, role, restaurantId })`, decodifique el token con `jwt.decode(token, { complete: true })` y compruebe que `decoded.payload.exp - decoded.payload.iat === 24 * 60 * 60` (24h en segundos); confirmar que falla contra el código actual (hoy son 8h) y luego cambiar `{ expiresIn: '8h' }` por `{ expiresIn: '24h' }` en `BcryptAuthService.generateToken` hasta que el test pase.
-- [ ] 2. En el mismo archivo, añadir un test que compruebe que `hashPassword` devuelve un hash distinto de la contraseña en plano y que `comparePasswords` valida correctamente contraseña correcta/incorrecta contra ese hash.
-- [ ] 3. Añadir un test que compruebe que el payload decodificado del token contiene `id`, `role` y `restaurantId` tal cual se pasaron a `generateToken`.
-- [ ] 4. En `RegisterClientUseCase.test.ts`, añadir un test que compruebe que `employeeRepo.save` se llama con un `Employee` cuyo `passwordHash` es el valor devuelto por `authService.hashPassword` (mock), nunca la contraseña en plano recibida en el DTO.
-- [ ] 5. En `RegisterClientUseCase.test.ts`, añadir un test que compruebe que el `role` del empleado creado es siempre `'cliente'`, incluso si el DTO de entrada incluyera un campo `role` adicional (debe seguir ignorándose).
-- [ ] 6. Actualizar `docs/dominio/glosario.md` línea de **JWT**: "Caduca a las **8 h**" → "Caduca a las **24 h**".
-- [ ] 7. Ejecutar `npm test` desde la raíz (o `npx vitest run` dentro de `packages/api`) y confirmar que toda la suite pasa, incluidos los tests nuevos.
-- [ ] 8. Verificación manual: con la API levantada (`npm run dev:api`), hacer `POST /api/v1/auth/register` y `POST /api/v1/auth/login` con una herramienta como curl/Postman, decodificar el `token` devuelto (p. ej. en jwt.io) y comprobar que `exp - iat` corresponde a 24h y que el payload trae `id`, `role` y `restaurantId`.
+- [x] 1. Crear `BcryptAuthService.test.ts` con un test que llame a `generateToken({ id, role, restaurantId })`, decodifique el token con `jwt.decode(token, { complete: true })` y compruebe que `decoded.payload.exp - decoded.payload.iat === 24 * 60 * 60` (24h en segundos); confirmar que falla contra el código actual (hoy son 8h) y luego cambiar `{ expiresIn: '8h' }` por `{ expiresIn: '24h' }` en `BcryptAuthService.generateToken` hasta que el test pase.
+- [x] 2. En el mismo archivo, añadir un test que compruebe que `hashPassword` devuelve un hash distinto de la contraseña en plano y que `comparePasswords` valida correctamente contraseña correcta/incorrecta contra ese hash.
+- [x] 3. Añadir un test que compruebe que el payload decodificado del token contiene `id`, `role` y `restaurantId` tal cual se pasaron a `generateToken`.
+- [x] 4. En `RegisterClientUseCase.test.ts`, añadir un test que compruebe que `employeeRepo.save` se llama con un `Employee` cuyo `passwordHash` es el valor devuelto por `authService.hashPassword` (mock), nunca la contraseña en plano recibida en el DTO.
+- [x] 5. En `RegisterClientUseCase.test.ts`, añadir un test que compruebe que el `role` del empleado creado es siempre `'cliente'`, incluso si el DTO de entrada incluyera un campo `role` adicional (debe seguir ignorándose).
+- [x] 6. Actualizar `docs/dominio/glosario.md` línea de **JWT**: "Caduca a las **8 h**" → "Caduca a las **24 h**".
+- [x] 7. Ejecutar `npm test` desde la raíz (o `npx vitest run` dentro de `packages/api`) y confirmar que toda la suite pasa, incluidos los tests nuevos.
+- [x] 8. Verificación manual: con la API levantada (`npm run dev:api`), hacer `POST /api/v1/auth/register` y `POST /api/v1/auth/login` con una herramienta como curl/Postman, decodificar el `token` devuelto (p. ej. en jwt.io) y comprobar que `exp - iat` corresponde a 24h y que el payload trae `id`, `role` y `restaurantId`.
 
 ## Criterios de aceptación
 
 > Comportamiento observable que debe cumplirse para dar la tarea por terminada. Deben poder verificarse sin ambigüedad.
 
-- [ ] Un token JWT generado por login o registro (vía `jsonwebtoken`) caduca exactamente 24h después de emitirse (`exp - iat = 86400`).
-- [ ] `POST /api/v1/auth/register` sigue exigiendo nombre (`firstName`/`lastName`), email y contraseña; la contraseña nunca se guarda en plano, solo su hash (`passwordHash`).
-- [ ] El usuario registrado por auto-registro público queda siempre con rol `cliente`; los demás roles (`admin`, `manager`, `camarero`, `cocinero`) solo se asignan vía `POST /employees` por un `admin` autenticado, como ya ocurre hoy.
-- [ ] `POST /api/v1/auth/login` sigue devolviendo `{ token, employee }` con el `role` real del usuario, y rechaza con 401 (`InvalidCredentialsError`) credenciales incorrectas.
-- [ ] La suite de tests de `packages/api` pasa en verde, incluyendo los nuevos tests de `BcryptAuthService` y los casos añadidos a `RegisterClientUseCase.test.ts`.
-- [ ] `docs/dominio/glosario.md` refleja la caducidad de 24h, no 8h.
+- [x] Un token JWT generado por login o registro (vía `jsonwebtoken`) caduca exactamente 24h después de emitirse (`exp - iat = 86400`). Verificado por test (`BcryptAuthService.test.ts`) y manualmente contra la API real.
+- [x] `POST /api/v1/auth/register` sigue exigiendo nombre (`firstName`/`lastName`), email y contraseña; la contraseña nunca se guarda en plano, solo su hash (`passwordHash`). Verificado por test y manualmente.
+- [x] El usuario registrado por auto-registro público queda siempre con rol `cliente`; los demás roles (`admin`, `manager`, `camarero`, `cocinero`) solo se asignan vía `POST /employees` por un `admin` autenticado, como ya ocurre hoy. Verificado por test.
+- [ ] `POST /api/v1/auth/login` sigue devolviendo `{ token, employee }` con el `role` real del usuario, y rechaza con 401 (`InvalidCredentialsError`) credenciales incorrectas. El caso de éxito se verificó manualmente; el rechazo con credenciales incorrectas ya estaba cubierto por tests previos de `LoginUseCase` (fuera del alcance de este plan) y no se repitió aquí.
+- [x] La suite de tests de `packages/api` pasa en verde (73 tests), incluyendo los nuevos tests de `BcryptAuthService` y los casos añadidos a `RegisterClientUseCase.test.ts`.
+- [x] `docs/dominio/glosario.md` refleja la caducidad de 24h, no 8h.
 
 ## Dudas y decisiones tomadas
 
