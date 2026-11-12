@@ -45,6 +45,21 @@ describe('RegisterClientUseCase', () => {
         expect(mockEmployeeRepo.save).toHaveBeenCalledOnce()
     })
 
+    it('should never store the plain password, only its hash', async () => {
+        vi.mocked(mockEmployeeRepo.findByEmail!).mockResolvedValue(null)
+
+        await useCase.execute({
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'john@example.com',
+            password: 'password123'
+        })
+
+        const savedEmployee = vi.mocked(mockEmployeeRepo.save!).mock.calls[0][0]
+        expect(savedEmployee.passwordHash).toBe('hashedPassword')
+        expect(savedEmployee.passwordHash).not.toBe('password123')
+    })
+
     it('should throw DuplicatedEmailError when email already exists', async () => {
         vi.mocked(mockEmployeeRepo.findByEmail!).mockResolvedValue({
             id: 'existing-id',
