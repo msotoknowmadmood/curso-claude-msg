@@ -174,4 +174,30 @@ describe('TableService (por id)', () => {
             expect(await tableRepo.findById(existing.id)).not.toBeNull()
         })
     })
+
+    describe('changeStatus', () => {
+        it('should normalize and save the new status updating updatedAt', async () => {
+            const changed = await service.changeStatus('r1', existing.id, ' Ocupada ')
+
+            expect(changed.status).toBe('ocupada')
+            expect(changed.updatedAt >= existing.updatedAt).toBe(true)
+            expect(changed).toMatchObject({ number: 1, capacity: 4, description: 'Ventana', createdAt: existing.createdAt })
+            expect((await tableRepo.findById(existing.id))?.status).toBe('ocupada')
+        })
+
+        it('should allow any transition, e.g. freeing a table', async () => {
+            await service.changeStatus('r1', existing.id, 'ocupada')
+            expect((await service.changeStatus('r1', existing.id, 'libre')).status).toBe('libre')
+        })
+
+        it('should reject an invalid or missing status', async () => {
+            await expect(service.changeStatus('r1', existing.id, 'sucia')).rejects.toThrow(InvalidTableStatusError)
+            await expect(service.changeStatus('r1', existing.id, undefined as unknown as string)).rejects.toThrow(InvalidTableStatusError)
+        })
+
+        it('should throw TableNotFoundError if it does not exist or belongs to another restaurant', async () => {
+            await expect(service.changeStatus('r1', 'nope', 'libre')).rejects.toThrow(TableNotFoundError)
+            await expect(service.changeStatus('r2', existing.id, 'libre')).rejects.toThrow(TableNotFoundError)
+        })
+    })
 })

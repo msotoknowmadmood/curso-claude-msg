@@ -74,6 +74,18 @@ export class TableService {
         return updated
     }
 
+    // Sin restricciones de transición: es también la única forma de liberar una mesa.
+    async changeStatus(restaurantId: string, id: string, status: string): Promise<Table> {
+        const existing = await this.getById(restaurantId, id)
+        const updated: Table = {
+            ...existing,
+            status: normalizeTableStatus(status),
+            updatedAt: new Date().toISOString()
+        }
+        await this.tableRepository.save(updated)
+        return updated
+    }
+
     async delete(restaurantId: string, id: string): Promise<void> {
         await this.getById(restaurantId, id)
         await this.tableRepository.delete(id)
