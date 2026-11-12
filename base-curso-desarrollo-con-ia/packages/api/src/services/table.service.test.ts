@@ -9,7 +9,9 @@ import {
     RestaurantIdRequiredError,
     RestaurantNotFoundError,
     DuplicatedTableNumberError,
-    TableNotFoundError
+    TableNotFoundError,
+    TableNotAvailableError,
+    InvalidPeopleCountError
 } from '@errors/DomainErrors.js'
 import type { Table } from '@models/table.model.js'
 
@@ -198,6 +200,45 @@ describe('TableService (por id)', () => {
         it('should throw TableNotFoundError if it does not exist or belongs to another restaurant', async () => {
             await expect(service.changeStatus('r1', 'nope', 'libre')).rejects.toThrow(TableNotFoundError)
             await expect(service.changeStatus('r2', existing.id, 'libre')).rejects.toThrow(TableNotFoundError)
+        })
+    })
+
+    describe('findAvailable', () => {
+        it('should return free tables of the restaurant with enough capacity', async () => {
+            await service.create({ restaurantId: 'r1', number: 3, capacity: 6 })
+            await service.create({ restaurantId: 'r2', number: 1, capacity: 8 })
+
+            const tables = await service.findAvailable('r1', 2)
+            expect(tables.map(t => t.number)).toEqual([2, 3])
+        })
+
+        it.each([[0], [-1], [2.5], [NaN], ['3'], [undefined]])('should throw InvalidPeopleCountError for people = %s', async (people) => {
+            await expect(service.findAvailable('r1', people as unknown as number)).rejects.toThrow(InvalidPeopleCountError)
+        })
+    })
+
+    describe('occupy', () => {
+        it('should occupy a free table and return it', async () => {
+            const free = (await service.findByRestaurantId('r1')).find(t => t.number === 2)!
+
+            const occupied = await service.occupy('r1', free.id)
+            expect(occupied).toMatchObject({ id: free.id, status: 'ocupada' })
+            expect((await tableRepo.findById(free.id))?.status).toBe('ocupada')
+        })
+
+        it('should throw TableNotAvailableError the second time and for reserved tables', async () => {
+            const free = (await service.findByRestaurantId('r1')).find(t => t.number === 2)!
+            await service.occupy('r1', free.id)
+
+            await expect(service.occupy('r1', free.id)).rejects.toThrow(TableNotAvailableError)
+            await expect(service.occupy('r1', existing.id)).rejects.toThrow(TableNotAvailableError)
+        })
+
+        it('should throw TableNotFoundError if it does not exist or belongs to another restaurant', async () => {
+            const free = (await service.findByRestaurantId('r1')).find(t => t.number === 2)!
+            await expect(service.occupy('r1', 'nope')).rejects.toThrow(TableNotFoundError)
+            await expect(service.occupy('r2', free.id)).rejects.toThrow(TableNotFoundError)
+            expect((await tableRepo.findById(free.id))?.status).toBe('libre')
         })
     })
 })

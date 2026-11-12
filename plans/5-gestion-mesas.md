@@ -112,7 +112,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 - [x] 10. En `create()`, rechazar número duplicado en el mismo restaurante con `DuplicatedTableNumberError` (y permitir el mismo número en otro restaurante). Tests.
 - [x] 11. `TableService.update()` (404 si no existe, revalida, mantiene `restaurantId`/`createdAt`, comprueba duplicado ignorando la propia mesa) y `delete()` (404 si no existe). Tests.
 - [x] 12. `TableService.changeStatus(id, status)` (404 si no existe, normaliza estado, actualiza `updatedAt`). Tests.
-- [ ] 13. `TableService.findAvailable(restaurantId, people)` (lanza `InvalidPeopleCountError` si `people` no es entero ≥ 1) y `occupy(id)` (404 si no existe; `TableNotAvailableError` si `occupyIfFree` devuelve `false`). Tests.
+- [x] 13. `TableService.findAvailable(restaurantId, people)` (lanza `InvalidPeopleCountError` si `people` no es entero ≥ 1) y `occupy(id)` (404 si no existe; `TableNotAvailableError` si `occupyIfFree` devuelve `false`). Tests.
 
 ### API — HTTP
 
