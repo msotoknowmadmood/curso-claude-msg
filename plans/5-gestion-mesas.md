@@ -153,7 +153,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 ### Documentación y cierre
 
 - [x] 37. Actualizar `docs/dominio/modelo-datos.md` (tabla `tables`, ERD, relaciones) y `docs/dominio/glosario.md` (Mesa, estados `libre`/`ocupada`/`reservada`).
-- [ ] 38. Actualizar `docs/arquitectura/arquitectura-api.md` (tabla de endpoints de mesas, `TableNotFoundError` en la lista de 404, `table` en los dominios por capas) y ejecutar `/update-api-docs` para el OpenAPI.
+- [x] 38. Actualizar `docs/arquitectura/arquitectura-api.md` (tabla de endpoints de mesas, `TableNotFoundError` en la lista de 404, `table` en los dominios por capas) y ejecutar `/update-api-docs` para el OpenAPI.
 - [ ] 39. Verificación end-to-end: cliente ocupa mesa y pide → empleado ve la mesa ocupada con su pedido en "Mesas" y "Mesa N" en cocina/barra → empleado la pasa a `libre` → vuelve a aparecer como disponible para el cliente.
 
 ## Criterios de aceptación

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Resttek API
-  version: 1.0.1
+  version: 1.0.2
   description: |
     API REST de Resttek, plataforma de gestión de restaurantes (panel de administración,
     app de empleados y app de clientes). Express 5 + TypeScript + SQLite.
@@ -37,7 +37,7 @@ info:
 
     ## Novedades de la issue 5 (gestión de mesas)
     Todo lo marcado como **NUEVO (issue 5)** (tag `Tables`, campo `Order.tableNumber`,
-    uso de `tableId` en `POST /orders`) es contrato acordado pero **todavía no implementado**.
+    uso de `tableId` en `POST /orders`) se añadió en la issue 5 y **ya está implementado** en la API.
 servers:
   - url: http://localhost:3000/api/v1
     description: Desarrollo local (las apps Angular lo alcanzan vía proxy `/api`)
@@ -58,7 +58,7 @@ tags:
     description: Inventario de ingredientes por restaurante.
   - name: Tables
     description: |
-      **NUEVO (issue 5) — todavía no implementado.** Mesas de cada restaurante: CRUD (admin),
+      **NUEVO (issue 5).** Mesas de cada restaurante: CRUD (admin),
       cambio de estado (empleados), búsqueda de mesas libres y ocupación atómica (cliente).
   - name: Orders
     description: |
