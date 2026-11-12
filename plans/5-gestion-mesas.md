@@ -126,7 +126,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 ### web-admin
 
 - [x] 20. Crear `features/tables/models/table.model.ts` y `features/tables/services/table.service.ts` (`getAll`, `getById`, `create`, `update`, `delete` sobre `${environment.apiUrl}/restaurants/:restaurantId/tables`).
-- [ ] 21. Crear `features/tables/store/table.store.ts` siguiendo `IngredientStore` (signals privados de solo lectura, `loading`, `error`, `firstValueFrom`).
+- [x] 21. Crear `features/tables/store/table.store.ts` siguiendo `IngredientStore` (signals privados de solo lectura, `loading`, `error`, `firstValueFrom`).
 - [ ] 22. Crear `pages/table-list` (tabla número/descripción/capacidad/estado con badge, botones editar/borrar con confirmación, botón "Nueva mesa").
 - [ ] 23. Crear `pages/table-form` (número, descripción, capacidad, estado; modo crear/editar según `:id`; mostrar el `message` del error de la API, p. ej. número duplicado).
 - [ ] 24. Crear `tables.routes.ts`, registrar `tables` en `app.routes.ts` bajo `restaurants/:restaurantId` y añadir la tarjeta "Mesas" en `restaurant-dashboard.component.html`. Verificar en `:4200` el CRUD completo.
