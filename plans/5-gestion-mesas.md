@@ -108,7 +108,7 @@ Introducir el concepto de **mesa** en Resttek para que cada pedido quede asociad
 
 ### API — servicio
 
-- [ ] 9. `TableService.create()` + `buildTable()`: valida `number` entero > 0, `capacity` entero > 0, `restaurantId` obligatorio, `status` por defecto `libre` y normalizado. Tests con el mock (caso feliz + cada validación).
+- [x] 9. `TableService.create()` + `buildTable()`: valida `number` entero > 0, `capacity` entero > 0, `restaurantId` obligatorio, `status` por defecto `libre` y normalizado. Tests con el mock (caso feliz + cada validación).
 - [ ] 10. En `create()`, rechazar número duplicado en el mismo restaurante con `DuplicatedTableNumberError` (y permitir el mismo número en otro restaurante). Tests.
 - [ ] 11. `TableService.update()` (404 si no existe, revalida, mantiene `restaurantId`/`createdAt`, comprueba duplicado ignorando la propia mesa) y `delete()` (404 si no existe). Tests.
 - [ ] 12. `TableService.changeStatus(id, status)` (404 si no existe, normaliza estado, actualiza `updatedAt`). Tests.
